@@ -1,4 +1,4 @@
-import type { IssueDetail, RepositoryRef } from "@gitru/commands";
+import type { IssueDetail, RepositoryRef, TimelineItem } from "@gitru/commands";
 import { Button } from "@gitru/ui/components/button";
 import {
   Empty,
@@ -7,6 +7,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@gitru/ui/components/empty";
+import { Input } from "@gitru/ui/components/input";
 import { ScrollArea } from "@gitru/ui/components/scroll-area";
 import { Skeleton } from "@gitru/ui/components/skeleton";
 import { Spinner } from "@gitru/ui/components/spinner";
@@ -15,8 +16,10 @@ import {
   ExternalLinkIcon,
   LockIcon,
   MousePointerClickIcon,
+  PencilIcon,
+  XIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import {
   actorLogin,
   GithubAvatar,
@@ -26,9 +29,21 @@ import {
   RelativeTime,
 } from "@/components/github/github-primitives";
 import { githubErrorMessage } from "@/hooks/use-github";
-import { useGithubIssue } from "@/hooks/use-github-issues";
-import { openExternalUrlSafely } from "@/lib/open-external-url";
 import {
+  type IssueMutations,
+  useIssueMutations,
+} from "@/hooks/use-github-issue-mutations";
+import { useGithubIssue } from "@/hooks/use-github-issues";
+import { isOptimistic } from "@/lib/github-issue-changes";
+import { openExternalUrlSafely } from "@/lib/open-external-url";
+import { IssueComposer, useIssueDraft } from "./issue-composer";
+import {
+  AssigneesPicker,
+  LabelsPicker,
+  MilestonePicker,
+} from "./issue-pickers";
+import {
+  type CommentActions,
   CommentCard,
   type OpenIssueHandler,
   ReferenceLink,
@@ -82,7 +97,6 @@ function IssueDetailView({
 }) {
   const query = useGithubIssue(repository, number);
   const { issue, timeline } = query;
-  const currentRepository = `${repository.owner}/${repository.name}`;
 
   if (query.isPending) {
     return <IssueDetailSkeleton />;
@@ -98,12 +112,106 @@ function IssueDetailView({
     );
   }
 
+  return (
+    <IssueDetailContent
+      repository={repository}
+      issue={issue}
+      timeline={timeline}
+      query={query}
+      onOpenIssue={onOpenIssue}
+    />
+  );
+}
+
+function IssueDetailContent({
+  repository,
+  issue,
+  timeline,
+  query,
+  onOpenIssue,
+}: {
+  repository: RepositoryRef;
+  issue: IssueDetail;
+  timeline: TimelineItem[];
+  query: Pick<
+    ReturnType<typeof useGithubIssue>,
+    "isFetching" | "hasNextPage" | "isFetchingNextPage" | "fetchNextPage"
+  >;
+  onOpenIssue: OpenIssueHandler;
+}) {
+  const mutations = useIssueMutations(repository, issue);
+  const [draft, setDraft] = useIssueDraft(issue.id);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const currentRepository = `${repository.owner}/${repository.name}`;
   const remaining = Math.max(0, issue.timeline.total_count - timeline.length);
+  const { viewer } = issue;
+
+  const appendQuote = (markdown: string) => {
+    setDraft((current) =>
+      current.trim()
+        ? `${current.replace(/\s*$/, "")}\n\n${markdown}`
+        : markdown,
+    );
+    requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      composerRef.current?.scrollIntoView({ block: "center" });
+    });
+  };
+  const quoteReply = viewer.can_comment ? appendQuote : undefined;
+
+  const bodyActions: CommentActions = {
+    onSave: viewer.can_update ? mutations.editBody : undefined,
+    onReact: viewer.can_react
+      ? (content, reacted) => mutations.react(issue.id, content, reacted)
+      : undefined,
+    onQuote: quoteReply,
+    saving: mutations.savingBody,
+  };
+
+  const commentActions = (item: TimelineItem): CommentActions | undefined => {
+    if (item.kind !== "comment" || isOptimistic(item)) return undefined;
+    return {
+      onSave: item.viewer_can_update
+        ? (body) => mutations.editComment(item.id, body)
+        : undefined,
+      onDelete: item.viewer_can_delete
+        ? () => mutations.deleteComment(item.id)
+        : undefined,
+      onReact: item.viewer_can_react
+        ? (content, reacted) => mutations.react(item.id, content, reacted)
+        : undefined,
+      onQuote: quoteReply,
+      saving: mutations.savingCommentId === item.id,
+    };
+  };
 
   return (
     <ScrollArea className="h-full">
       <div className="@container mx-auto flex max-w-5xl flex-col gap-5 px-6 py-5">
-        <IssueHeader issue={issue} fetching={query.isFetching} />
+        <IssueHeader
+          issue={issue}
+          fetching={query.isFetching}
+          onSaveTitle={viewer.can_update ? mutations.editTitle : undefined}
+        />
+
+        {mutations.error && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive-foreground"
+          >
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+              {mutations.error}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Dismiss"
+              onClick={mutations.dismissError}
+            >
+              <XIcon />
+            </Button>
+          </div>
+        )}
 
         <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1fr)_13rem]">
           <div className="flex min-w-0 flex-col gap-3">
@@ -113,9 +221,12 @@ function IssueDetailView({
               createdAt={issue.created_at}
               lastEditedAt={issue.last_edited_at}
               bodyHtml={issue.body_html}
+              body={issue.body}
               reactions={issue.reactions}
               htmlUrl={issue.html_url}
               verb="opened this issue"
+              repository={repository}
+              actions={bodyActions}
               onOpenIssue={onOpenIssue}
             />
 
@@ -124,6 +235,9 @@ function IssueDetailView({
                 key={item.id}
                 item={item}
                 currentRepository={currentRepository}
+                repository={repository}
+                actions={commentActions(item)}
+                pending={isOptimistic(item)}
                 onOpenIssue={onOpenIssue}
               />
             ))}
@@ -145,20 +259,31 @@ function IssueDetailView({
               </div>
             )}
 
-            {issue.locked && (
+            {issue.locked && viewer.can_comment && (
               <p className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 <LockIcon className="size-3.5" aria-hidden />
                 This conversation has been locked
                 {issue.active_lock_reason
                   ? ` as ${issue.active_lock_reason.toLowerCase().replace("_", " ")}`
                   : ""}
-                .
+                . You can still comment as a collaborator.
               </p>
             )}
+
+            <IssueComposer
+              repository={repository}
+              issue={issue}
+              mutations={mutations}
+              draft={draft}
+              setDraft={setDraft}
+              textareaRef={composerRef}
+            />
           </div>
 
           <IssueSidebar
+            repository={repository}
             issue={issue}
+            mutations={mutations}
             currentRepository={currentRepository}
             onOpenIssue={onOpenIssue}
           />
@@ -168,12 +293,92 @@ function IssueDetailView({
   );
 }
 
+function IssueTitle({
+  issue,
+  onSave,
+}: {
+  issue: IssueDetail;
+  onSave?: (title: string) => Promise<unknown>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  if (editing && onSave) {
+    const submit = (event: FormEvent) => {
+      event.preventDefault();
+      const title = draft.trim();
+      if (!title) return;
+      setEditing(false);
+      if (title === issue.title) return;
+      onSave(title).catch(() => {
+        setDraft(title);
+        setEditing(true);
+      });
+    };
+
+    return (
+      <form
+        onSubmit={submit}
+        className="flex min-w-0 flex-1 items-center gap-2"
+      >
+        <Input
+          aria-label="Issue title"
+          value={draft}
+          maxLength={256}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setEditing(false);
+          }}
+          autoFocus
+        />
+        <Button type="submit" size="sm" disabled={!draft.trim()}>
+          Save
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setEditing(false)}
+        >
+          Cancel
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <>
+      <h1 className="min-w-0 flex-1 text-xl font-semibold leading-snug [overflow-wrap:anywhere]">
+        {issue.title}{" "}
+        <span className="font-normal text-muted-foreground">
+          #{issue.number}
+        </span>
+      </h1>
+      {onSave && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setDraft(issue.title);
+            setEditing(true);
+          }}
+        >
+          <PencilIcon />
+          Edit
+        </Button>
+      )}
+    </>
+  );
+}
+
 function IssueHeader({
   issue,
   fetching,
+  onSaveTitle,
 }: {
   issue: IssueDetail;
   fetching: boolean;
+  onSaveTitle?: (title: string) => Promise<unknown>;
 }) {
   const open = issue.state === "open";
   const notPlanned =
@@ -181,13 +386,8 @@ function IssueHeader({
 
   return (
     <header className="flex flex-col gap-2">
-      <div className="flex items-start gap-3">
-        <h1 className="min-w-0 flex-1 text-xl font-semibold leading-snug [overflow-wrap:anywhere]">
-          {issue.title}{" "}
-          <span className="font-normal text-muted-foreground">
-            #{issue.number}
-          </span>
-        </h1>
+      <div className="flex items-start gap-1">
+        <IssueTitle issue={issue} onSave={onSaveTitle} />
         <div className="flex shrink-0 items-center gap-1">
           {fetching && <Spinner className="size-3.5" />}
           <Button
@@ -233,14 +433,20 @@ function IssueHeader({
 
 function SidebarSection({
   title,
+  action,
   children,
 }: {
   title: string;
+  /** A picker trigger shown next to the title. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-1.5 border-b pb-3 last:border-b-0">
-      <h2 className="text-xs font-medium text-muted-foreground">{title}</h2>
+      <div className="flex min-h-6 items-center justify-between gap-2">
+        <h2 className="text-xs font-medium text-muted-foreground">{title}</h2>
+        {action}
+      </div>
       <div className="text-sm">{children}</div>
     </section>
   );
@@ -251,23 +457,39 @@ const None = ({ children }: { children: ReactNode }) => (
 );
 
 function IssueSidebar({
+  repository,
   issue,
+  mutations,
   currentRepository,
   onOpenIssue,
 }: {
+  repository: RepositoryRef;
   issue: IssueDetail;
+  mutations: IssueMutations;
   currentRepository: string;
   onOpenIssue: OpenIssueHandler;
 }) {
+  const { viewer } = issue;
   return (
     <aside className="flex flex-col gap-3 @3xl:sticky @3xl:top-0 @3xl:self-start">
-      <SidebarSection title="Assignees">
+      <SidebarSection
+        title="Assignees"
+        action={
+          viewer.can_assign && (
+            <AssigneesPicker
+              repository={repository}
+              selected={issue.assignees}
+              onChange={mutations.setAssignees}
+            />
+          )
+        }
+      >
         {issue.assignees.length === 0 ? (
           <None>No one assigned</None>
         ) : (
           <ul className="flex flex-col gap-1">
             {issue.assignees.map((assignee) => (
-              <li key={assignee.login} className="flex items-center gap-1.5">
+              <li key={assignee.id} className="flex items-center gap-1.5">
                 <GithubAvatar actor={assignee} />
                 <span className="truncate">{assignee.login}</span>
               </li>
@@ -276,19 +498,41 @@ function IssueSidebar({
         )}
       </SidebarSection>
 
-      <SidebarSection title="Labels">
+      <SidebarSection
+        title="Labels"
+        action={
+          viewer.can_label && (
+            <LabelsPicker
+              repository={repository}
+              selected={issue.labels}
+              onChange={mutations.setLabels}
+            />
+          )
+        }
+      >
         {issue.labels.length === 0 ? (
           <None>None yet</None>
         ) : (
           <div className="flex flex-wrap gap-1">
             {issue.labels.map((label) => (
-              <LabelChip key={label.name} label={label} />
+              <LabelChip key={label.id} label={label} />
             ))}
           </div>
         )}
       </SidebarSection>
 
-      <SidebarSection title="Milestone">
+      <SidebarSection
+        title="Milestone"
+        action={
+          viewer.can_set_milestone && (
+            <MilestonePicker
+              repository={repository}
+              selected={issue.milestone}
+              onChange={mutations.setMilestone}
+            />
+          )
+        }
+      >
         {issue.milestone ? (
           <button
             type="button"

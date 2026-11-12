@@ -127,8 +127,20 @@ pub struct Actor {
     pub html_url: String,
 }
 
+/// A user or bot that can be assigned. `id` is the GraphQL node ID used by
+/// mutations.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct User {
+    pub id: String,
+    pub login: String,
+    pub avatar_url: String,
+    pub html_url: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Label {
+    /// GraphQL node ID, used to add or remove the label.
+    pub id: String,
     pub name: String,
     /// Hex colour without `#`, e.g. `d73a4a`.
     pub color: String,
@@ -241,17 +253,58 @@ pub struct IssueDetailRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Milestone {
+    pub id: String,
     pub title: String,
     pub html_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub due_on: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum ReactionContent {
+    #[serde(alias = "THUMBS_UP")]
+    ThumbsUp,
+    #[serde(alias = "THUMBS_DOWN")]
+    ThumbsDown,
+    #[serde(alias = "LAUGH")]
+    Laugh,
+    #[serde(alias = "HOORAY")]
+    Hooray,
+    #[serde(alias = "CONFUSED")]
+    Confused,
+    #[serde(alias = "HEART")]
+    Heart,
+    #[serde(alias = "ROCKET")]
+    Rocket,
+    #[serde(alias = "EYES")]
+    Eyes,
+    /// A reaction added by GitHub after this build; never sent back.
+    #[serde(other)]
+    Other,
+}
+
+impl ReactionContent {
+    /// GitHub's `ReactionContent` enum value.
+    pub fn graphql_name(self) -> Option<&'static str> {
+        Some(match self {
+            Self::ThumbsUp => "THUMBS_UP",
+            Self::ThumbsDown => "THUMBS_DOWN",
+            Self::Laugh => "LAUGH",
+            Self::Hooray => "HOORAY",
+            Self::Confused => "CONFUSED",
+            Self::Heart => "HEART",
+            Self::Rocket => "ROCKET",
+            Self::Eyes => "EYES",
+            Self::Other => return None,
+        })
+    }
+}
+
 /// Only reactions that someone used.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ReactionGroup {
-    /// GitHub's `ReactionContent`, e.g. `THUMBS_UP`, `HEART`, `ROCKET`.
-    pub content: String,
+    pub content: ReactionContent,
     pub count: u32,
     pub viewer_has_reacted: bool,
 }
@@ -322,6 +375,15 @@ pub struct TimelineItem {
     /// Comment body rendered by GitHub. Untrusted: sanitize before display.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body_html: Option<String>,
+    /// Comment markdown source, for editing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub viewer_can_update: bool,
+    #[serde(default)]
+    pub viewer_can_delete: bool,
+    #[serde(default)]
+    pub viewer_can_react: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author_association: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -367,8 +429,26 @@ pub struct TimelinePage {
     pub end_cursor: Option<String>,
 }
 
+/// What the signed-in user may do with an issue, as reported by GitHub.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct IssuePermissions {
+    /// Edit the title and body.
+    pub can_update: bool,
+    pub can_close: bool,
+    pub can_reopen: bool,
+    pub can_react: bool,
+    /// False when the repository is archived, or the issue is locked and the
+    /// viewer lacks write access.
+    pub can_comment: bool,
+    pub can_label: bool,
+    pub can_assign: bool,
+    pub can_set_milestone: bool,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct IssueDetail {
+    /// GraphQL node ID, the subject of every mutation.
+    pub id: String,
     pub number: u32,
     pub title: String,
     pub html_url: String,
@@ -377,6 +457,8 @@ pub struct IssueDetail {
     pub state_reason: Option<IssueStateReason>,
     /// Issue body rendered by GitHub. Untrusted: sanitize before display.
     pub body_html: String,
+    /// Markdown source of the body, for editing.
+    pub body: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub author: Option<Actor>,
     /// OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR, NONE, …
@@ -392,7 +474,7 @@ pub struct IssueDetail {
     pub active_lock_reason: Option<String>,
     pub comments: u32,
     pub labels: Vec<Label>,
-    pub assignees: Vec<Actor>,
+    pub assignees: Vec<User>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub milestone: Option<Milestone>,
     pub participants: Vec<Actor>,
@@ -402,6 +484,154 @@ pub struct IssueDetail {
     pub linked_pull_requests: Vec<Reference>,
     /// The page selected by `IssueDetailRequest::timeline_after`.
     pub timeline: TimelinePage,
+    pub viewer: IssuePermissions,
+}
+
+// ---------------------------------------------------------------------------
+// Issue changes (phase 3)
+//
+// Mutations address issues, comments, labels, users and milestones by their
+// GraphQL node IDs, which the read models above carry.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AddCommentRequest {
+    pub issue_id: String,
+    /// Markdown.
+    pub body: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct EditCommentRequest {
+    pub comment_id: String,
+    pub body: String,
+}
+
+/// Change the title, the body, or both. Absent fields stay as they are.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct EditIssueRequest {
+    pub issue_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct IssueContent {
+    pub title: String,
+    pub body: String,
+    /// Untrusted: sanitize before display.
+    pub body_html: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_edited_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum CloseReason {
+    Completed,
+    NotPlanned,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CloseIssueRequest {
+    pub issue_id: String,
+    pub reason: CloseReason,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct IssueStateUpdate {
+    pub state: IssueState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_reason: Option<IssueStateReason>,
+}
+
+/// Add and remove labels in one round trip. Changing only the difference
+/// keeps labels someone else set in the meantime.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ChangeLabelsRequest {
+    pub issue_id: String,
+    #[serde(default)]
+    pub add_label_ids: Vec<String>,
+    #[serde(default)]
+    pub remove_label_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ChangeAssigneesRequest {
+    pub issue_id: String,
+    #[serde(default)]
+    pub add_user_ids: Vec<String>,
+    #[serde(default)]
+    pub remove_user_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SetMilestoneRequest {
+    pub issue_id: String,
+    /// `None` removes the milestone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub milestone_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct MilestoneUpdate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub milestone: Option<Milestone>,
+}
+
+/// Add (`reacted: true`) or remove the viewer's reaction on an issue or comment.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SetReactionRequest {
+    pub subject_id: String,
+    pub content: ReactionContent,
+    pub reacted: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CreateIssueRequest {
+    pub repository: RepositoryRef,
+    pub title: String,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub label_ids: Vec<String>,
+    #[serde(default)]
+    pub assignee_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub milestone_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CreatedIssue {
+    pub number: u32,
+    pub html_url: String,
+}
+
+/// What the issue editor needs besides labels: open milestones and whether
+/// the viewer may open issues at all.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RepositoryIssueMetadata {
+    pub can_create_issues: bool,
+    /// Triage access or better: may set labels, assignees and milestones.
+    pub can_triage: bool,
+    pub milestones: Vec<Milestone>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct AssignableUsersRequest {
+    pub repository: RepositoryRef,
+    /// Login or name prefix; absent lists the first users.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RenderMarkdownRequest {
+    /// Resolves `#123` and `@user` references, like a comment in that repo.
+    pub repository: RepositoryRef,
+    pub text: String,
 }
 
 #[cfg(test)]

@@ -1,0 +1,7 @@
+fragment ActorFields on Actor { login avatarUrl url }
+fragment CommentFields on IssueComment {
+  __typename id url body bodyHTML createdAt lastEditedAt authorAssociation isMinimized minimizedReason
+  viewerCanUpdate viewerCanDelete viewerCanReact
+  author { ...ActorFields }
+  reactionGroups { content reactors { totalCount } viewerHasReacted }
+}

@@ -1,0 +1,5 @@
+query AssignableUsers($owner: String!, $name: String!, $query: String) {
+  repository(owner: $owner, name: $name) {
+    assignableUsers(first: 20, query: $query) { nodes { id login avatarUrl url } }
+  }
+}

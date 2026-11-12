@@ -1,0 +1,10 @@
+query RepositoryIssueMetadata($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    id
+    viewerCanCreateIssues
+    viewerPermission
+    milestones(first: 100, states: OPEN, orderBy: { field: DUE_DATE, direction: ASC }) {
+      nodes { id title url dueOn }
+    }
+  }
+}

@@ -61,6 +61,7 @@ import {
   issueFilters,
   SORT_LABELS,
 } from "./issues-search";
+import { NewIssueButton } from "./new-issue-dialog";
 
 export type IssuesSearchPatch = Partial<IssuesSearch>;
 
@@ -85,6 +86,7 @@ export function IssueList({
         onSearchChange={onSearchChange}
         totalCount={query.totalCount}
         fetching={query.isFetching}
+        onCreated={onSelectIssue}
       />
 
       {query.isPending && query.fetchStatus !== "idle" ? (
@@ -141,26 +143,31 @@ function IssueFilters({
   onSearchChange,
   totalCount,
   fetching,
+  onCreated,
 }: {
   repository: RepositoryRef;
   search: IssuesSearch;
   onSearchChange: (patch: IssuesSearchPatch) => void;
   totalCount: number | undefined;
   fetching: boolean;
+  onCreated: (number: number) => void;
 }) {
   const state = search.state ?? DEFAULT_STATE;
   const sort = search.sort ?? DEFAULT_SORT;
 
   return (
     <div className="flex flex-col gap-2 border-b p-3">
-      {/* Remount when the committed text changes elsewhere (e.g. "Clear"). */}
-      <IssueSearchInput
-        key={search.q ?? ""}
-        committed={search.q ?? ""}
-        onCommit={(q) =>
-          onSearchChange({ q: q || undefined, issue: undefined })
-        }
-      />
+      <div className="flex items-center gap-2">
+        {/* Remount when the committed text changes elsewhere (e.g. "Clear"). */}
+        <IssueSearchInput
+          key={search.q ?? ""}
+          committed={search.q ?? ""}
+          onCommit={(q) =>
+            onSearchChange({ q: q || undefined, issue: undefined })
+          }
+        />
+        <NewIssueButton repository={repository} onCreated={onCreated} />
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <ToggleGroup
@@ -315,7 +322,12 @@ function LabelFilter({
   // Keep labels from the URL visible even if the repository no longer has them.
   const extra = selected
     .filter((name) => !known.some((label) => label.name === name))
-    .map((name) => ({ name, color: "ededed", description: undefined }));
+    .map((name) => ({
+      id: `missing:${name}`,
+      name,
+      color: "ededed",
+      description: undefined,
+    }));
   const options = [...known, ...extra];
 
   const toggle = (name: string, checked: boolean) =>

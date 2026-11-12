@@ -1,71 +1,27 @@
-import type {
-  AuthStatus,
-  IssueDetail,
-  IssuePage,
-  TimelineItem,
-} from "@gitru/commands";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, test, vi } from "vitest";
 import { IssueDetailPane } from "../src/features/issues/issue-detail";
 import { IssueList } from "../src/features/issues/issue-list";
+import {
+  issueDetail,
+  mona,
+  issuePage as page,
+  renderWithQuery,
+  repository,
+  timelineItem,
+} from "./mocks/github-issues";
 import { mockTauriCommand, mockTauriCommandResult } from "./mocks/tauri";
 
-const repository = { owner: "octo", name: "hello" };
-
-const signedIn: AuthStatus = {
-  signed_in: true,
-  device_flow_available: false,
-  source: "ghCli",
-  viewer: {
-    login: "mona",
-    avatar_url: "https://avatars.githubusercontent.com/u/1?v=4",
-    html_url: "https://github.com/mona",
-  },
-};
-
-const mona = {
-  login: "mona",
-  avatar_url: "https://avatars.githubusercontent.com/u/1?v=4",
-  html_url: "https://github.com/mona",
-};
-
-function renderWithQuery(ui: ReactNode) {
-  mockTauriCommandResult("github_auth_status", signedIn);
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-  );
-}
-
-const page = (numbers: number[], next?: string): IssuePage => ({
-  issues: numbers.map((number) => ({
-    number,
-    title: `Issue ${number}`,
-    html_url: `https://github.com/octo/hello/issues/${number}`,
-    state: "open",
-    author: mona,
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-02T00:00:00Z",
-    comments: number,
-    labels: number === 1 ? [{ name: "bug", color: "d73a4a" }] : [],
-    assignees: [],
-  })),
-  total_count: 3,
-  has_next_page: next !== undefined,
-  end_cursor: next,
-});
+const metadata = { can_create_issues: true, can_triage: true, milestones: [] };
 
 describe("IssueList", () => {
   test("lists issues, pages with the cursor and reports filter changes", async () => {
     const user = userEvent.setup();
     mockTauriCommandResult("github_repository_labels", [
-      { name: "bug", color: "d73a4a" },
+      { id: "LA_bug", name: "bug", color: "d73a4a" },
     ]);
+    mockTauriCommandResult("github_repository_issue_metadata", metadata);
     const listIssues = mockTauriCommand("github_list_issues", (payload) => {
       const request = (payload as { request: { after?: string } }).request;
       return request.after === "cursor-2"
@@ -126,6 +82,7 @@ describe("IssueList", () => {
 
   test("shows GitHub's error instead of an empty list", async () => {
     mockTauriCommandResult("github_repository_labels", []);
+    mockTauriCommandResult("github_repository_issue_metadata", metadata);
     mockTauriCommand("github_list_issues", () => {
       throw "GitHub query failed: Something went wrong";
     });
@@ -145,43 +102,6 @@ describe("IssueList", () => {
   });
 });
 
-const timelineItem = (item: Partial<TimelineItem>): TimelineItem => ({
-  id: "x",
-  kind: "comment",
-  created_at: "2026-01-02T00:00:00Z",
-  reactions: [],
-  will_close: false,
-  ...item,
-});
-
-const detail = (items: TimelineItem[], next?: string): IssueDetail => ({
-  number: 42,
-  title: "Crash on start",
-  html_url: "https://github.com/octo/hello/issues/42",
-  state: "closed",
-  state_reason: "completed",
-  body_html:
-    '<p>See <a class="issue-link" href="https://github.com/octo/hello/issues/7">#7</a></p><script>window.pwned=1</script>',
-  author: mona,
-  author_association: "OWNER",
-  created_at: "2026-01-01T00:00:00Z",
-  updated_at: "2026-01-05T00:00:00Z",
-  locked: false,
-  comments: 1,
-  labels: [{ name: "bug", color: "d73a4a" }],
-  assignees: [mona],
-  participants: [mona],
-  participant_count: 1,
-  reactions: [{ content: "THUMBS_UP", count: 3, viewer_has_reacted: true }],
-  linked_pull_requests: [],
-  timeline: {
-    items,
-    total_count: 3,
-    has_next_page: next !== undefined,
-    end_cursor: next,
-  },
-});
-
 describe("IssueDetailPane", () => {
   test("renders the issue, its timeline and opens issue links in-app", async () => {
     const user = userEvent.setup();
@@ -189,7 +109,7 @@ describe("IssueDetailPane", () => {
       const request = (payload as { request: { timeline_after?: string } })
         .request;
       return request.timeline_after === "t-2"
-        ? detail([
+        ? issueDetail([
             timelineItem({
               id: "CE_1",
               kind: "closed",
@@ -206,7 +126,7 @@ describe("IssueDetailPane", () => {
               },
             }),
           ])
-        : detail(
+        : issueDetail(
             [
               timelineItem({
                 id: "IC_1",
@@ -217,9 +137,10 @@ describe("IssueDetailPane", () => {
                 id: "LE_1",
                 kind: "labeled",
                 actor: mona,
-                label: { name: "bug", color: "d73a4a" },
+                label: { id: "LA_bug", name: "bug", color: "d73a4a" },
               }),
             ],
+            {},
             "t-2",
           );
     });

@@ -1,0 +1,5 @@
+mutation RemoveReaction($id: ID!, $content: ReactionContent!) {
+  removeReaction(input: { subjectId: $id, content: $content }) {
+    subject { reactionGroups { content reactors { totalCount } viewerHasReacted } }
+  }
+}

@@ -2,7 +2,7 @@ query RepositoryLabels($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     labels(first: 100, after: $after, orderBy: { field: NAME, direction: ASC }) {
       pageInfo { hasNextPage endCursor }
-      nodes { name color description }
+      nodes { id name color description }
     }
   }
 }

@@ -6,16 +6,19 @@ fragment ReferencedItem on ReferencedSubject {
 }
 query IssueDetail($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
+    viewerPermission isArchived
     issue(number: $number) {
-      number title url state stateReason bodyHTML
+      id number title url state stateReason body bodyHTML
+      viewerCanUpdate viewerCanClose viewerCanReopen viewerCanReact
+      viewerCanLabel viewerCanAssign viewerCanSetMilestone
       createdAt updatedAt closedAt lastEditedAt
       author { ...ActorFields }
       authorAssociation
       locked activeLockReason
       comments { totalCount }
-      labels(first: 50) { nodes { name color description } }
-      assignees(first: 20) { nodes { ...ActorFields } }
-      milestone { title url state dueOn }
+      labels(first: 50, orderBy: { field: NAME, direction: ASC }) { nodes { id name color description } }
+      assignees(first: 20) { nodes { id ...ActorFields } }
+      milestone { id title url dueOn }
       participants(first: 30) { totalCount nodes { ...ActorFields } }
       reactionGroups { content reactors { totalCount } viewerHasReacted }
       closedByPullRequestsReferences(first: 10, includeClosedPrs: true) {
@@ -33,12 +36,13 @@ query IssueDetail($owner: String!, $name: String!, $number: Int!, $after: String
         nodes {
           __typename
           ... on IssueComment {
-            id url bodyHTML createdAt lastEditedAt authorAssociation isMinimized minimizedReason
+            id url body bodyHTML createdAt lastEditedAt authorAssociation isMinimized minimizedReason
+            viewerCanUpdate viewerCanDelete viewerCanReact
             author { ...ActorFields }
             reactionGroups { content reactors { totalCount } viewerHasReacted }
           }
-          ... on LabeledEvent { id createdAt actor { ...ActorFields } label { name color } }
-          ... on UnlabeledEvent { id createdAt actor { ...ActorFields } label { name color } }
+          ... on LabeledEvent { id createdAt actor { ...ActorFields } label { id name color } }
+          ... on UnlabeledEvent { id createdAt actor { ...ActorFields } label { id name color } }
           ... on AssignedEvent { id createdAt actor { ...ActorFields } assignee { ...ActorFields } }
           ... on UnassignedEvent { id createdAt actor { ...ActorFields } assignee { ...ActorFields } }
           ... on ClosedEvent {
