@@ -1,0 +1,70 @@
+fragment ActorFields on Actor { login avatarUrl url }
+fragment ReferencedItem on ReferencedSubject {
+  __typename
+  ... on Issue { number title url state repository { nameWithOwner } }
+  ... on PullRequest { number title url state isDraft repository { nameWithOwner } }
+}
+query IssueDetail($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      number title url state stateReason bodyHTML
+      createdAt updatedAt closedAt lastEditedAt
+      author { ...ActorFields }
+      authorAssociation
+      locked activeLockReason
+      comments { totalCount }
+      labels(first: 50) { nodes { name color description } }
+      assignees(first: 20) { nodes { ...ActorFields } }
+      milestone { title url state dueOn }
+      participants(first: 30) { totalCount nodes { ...ActorFields } }
+      reactionGroups { content reactors { totalCount } viewerHasReacted }
+      closedByPullRequestsReferences(first: 10, includeClosedPrs: true) {
+        nodes { number title url state isDraft repository { nameWithOwner } }
+      }
+      timelineItems(first: 100, after: $after, itemTypes: [
+        ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT,
+        CLOSED_EVENT, REOPENED_EVENT, RENAMED_TITLE_EVENT, MILESTONED_EVENT, DEMILESTONED_EVENT,
+        CROSS_REFERENCED_EVENT, REFERENCED_EVENT, CONNECTED_EVENT, DISCONNECTED_EVENT,
+        LOCKED_EVENT, UNLOCKED_EVENT, PINNED_EVENT, UNPINNED_EVENT, TRANSFERRED_EVENT,
+        MARKED_AS_DUPLICATE_EVENT
+      ]) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          __typename
+          ... on IssueComment {
+            id url bodyHTML createdAt lastEditedAt authorAssociation isMinimized minimizedReason
+            author { ...ActorFields }
+            reactionGroups { content reactors { totalCount } viewerHasReacted }
+          }
+          ... on LabeledEvent { id createdAt actor { ...ActorFields } label { name color } }
+          ... on UnlabeledEvent { id createdAt actor { ...ActorFields } label { name color } }
+          ... on AssignedEvent { id createdAt actor { ...ActorFields } assignee { ...ActorFields } }
+          ... on UnassignedEvent { id createdAt actor { ...ActorFields } assignee { ...ActorFields } }
+          ... on ClosedEvent {
+            id createdAt stateReason actor { ...ActorFields }
+            closer {
+              __typename
+              ... on PullRequest { number title url state isDraft repository { nameWithOwner } }
+              ... on Commit { abbreviatedOid url messageHeadline }
+            }
+          }
+          ... on ReopenedEvent { id createdAt actor { ...ActorFields } }
+          ... on RenamedTitleEvent { id createdAt actor { ...ActorFields } previousTitle currentTitle }
+          ... on MilestonedEvent { id createdAt actor { ...ActorFields } milestoneTitle }
+          ... on DemilestonedEvent { id createdAt actor { ...ActorFields } milestoneTitle }
+          ... on CrossReferencedEvent { id createdAt actor { ...ActorFields } willCloseTarget source { ...ReferencedItem } }
+          ... on ReferencedEvent { id createdAt actor { ...ActorFields } commit { abbreviatedOid url messageHeadline } commitRepository { nameWithOwner } }
+          ... on ConnectedEvent { id createdAt actor { ...ActorFields } subject { ...ReferencedItem } }
+          ... on DisconnectedEvent { id createdAt actor { ...ActorFields } subject { ...ReferencedItem } }
+          ... on LockedEvent { id createdAt actor { ...ActorFields } lockReason }
+          ... on UnlockedEvent { id createdAt actor { ...ActorFields } }
+          ... on PinnedEvent { id createdAt actor { ...ActorFields } }
+          ... on UnpinnedEvent { id createdAt actor { ...ActorFields } }
+          ... on TransferredEvent { id createdAt actor { ...ActorFields } fromRepository { nameWithOwner } }
+          ... on MarkedAsDuplicateEvent { id createdAt actor { ...ActorFields } canonical { ...ReferencedItem } }
+        }
+      }
+    }
+  }
+}

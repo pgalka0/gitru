@@ -66,4 +66,8 @@ export const installBrowserMocks = () => {
   });
   vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+  // jsdom has no Web Animations API; Base UI's ScrollArea calls it on mount.
+  if (typeof Element.prototype.getAnimations !== "function") {
+    Element.prototype.getAnimations = () => [];
+  }
 };

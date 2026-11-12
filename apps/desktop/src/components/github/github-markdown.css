@@ -1,0 +1,187 @@
+/* GitHub-rendered markdown. Scoped to .gh-markdown; uses the app's theme tokens. */
+
+.gh-markdown {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.gh-markdown > :first-child {
+  margin-top: 0;
+}
+
+.gh-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.gh-markdown :is(p, ul, ol, blockquote, pre, table, details, hr, .markdown-alert) {
+  margin: 0 0 0.75rem;
+}
+
+.gh-markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.25rem 0 0.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.gh-markdown h1 {
+  font-size: 1.4em;
+}
+
+.gh-markdown h2 {
+  font-size: 1.25em;
+}
+
+.gh-markdown :is(h1, h2) {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+}
+
+.gh-markdown h3 {
+  font-size: 1.1em;
+}
+
+.gh-markdown h4 {
+  font-size: 1em;
+}
+
+.gh-markdown :is(h5, h6) {
+  font-size: 0.9em;
+  color: var(--muted-foreground);
+}
+
+.gh-markdown a {
+  color: var(--info-foreground);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gh-markdown a:hover {
+  text-decoration: underline;
+}
+
+/* Heading anchors lose their SVG icon in sanitizing; hide the empty link. */
+.gh-markdown a.anchor {
+  display: none;
+}
+
+.gh-markdown :is(ul, ol) {
+  padding-left: 1.5rem;
+}
+
+.gh-markdown ul {
+  list-style: disc;
+}
+
+.gh-markdown ol {
+  list-style: decimal;
+}
+
+.gh-markdown li + li {
+  margin-top: 0.2rem;
+}
+
+.gh-markdown li > :is(ul, ol) {
+  margin: 0.2rem 0 0;
+}
+
+.gh-markdown .contains-task-list {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+
+.gh-markdown .task-list-item input {
+  margin: 0 0.4rem 0 0;
+  vertical-align: middle;
+}
+
+.gh-markdown code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 85%;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--muted);
+}
+
+.gh-markdown pre {
+  padding: 0.75rem;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--muted);
+  line-height: 1.45;
+}
+
+.gh-markdown pre code {
+  padding: 0;
+  font-size: 0.8125rem;
+  background: none;
+}
+
+.gh-markdown .pl-c {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.gh-markdown blockquote {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.gh-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.gh-markdown :is(th, td) {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+}
+
+.gh-markdown th {
+  font-weight: 600;
+  background: var(--muted);
+}
+
+.gh-markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.gh-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.gh-markdown details > summary {
+  cursor: pointer;
+}
+
+.gh-markdown .markdown-alert {
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--info);
+}
+
+.gh-markdown .markdown-alert-title {
+  font-weight: 600;
+}
+
+.gh-markdown .markdown-alert-tip {
+  border-left-color: var(--success);
+}
+
+.gh-markdown .markdown-alert-warning {
+  border-left-color: var(--warning);
+}
+
+.gh-markdown .markdown-alert-caution {
+  border-left-color: var(--destructive);
+}
+
+.gh-markdown .markdown-alert-important {
+  border-left-color: rgb(130 80 223);
+}

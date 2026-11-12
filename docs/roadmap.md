@@ -10,8 +10,8 @@ Each phase ships something usable on its own.
 |---|---|---|
 | 0. Cut from upstream | Remove updater, analytics, release/signing CI, `apps/web`, `apps/api`; own bundle identifier | Done |
 | 1. Foundation | `crates/github`: sign-in (Device Flow, GitHub CLI import), OS keychain, GraphQL client, rate limits; account button in the sidebar; Issues screen listing local GitHub repositories with open issue/PR counts | Done |
-| 2. Issues: read | Repository column (open counts), list with filters (state, assigned to me, labels, GitHub search syntax), detail with timeline: comments, events, labels, assignees, milestone, reactions, linked PRs | Next |
-| 3. Issues: write | Comment (editor + preview), edit/delete, close/reopen with reason, labels, assignees, milestone, title/body, reactions, new issue; optimistic updates | |
+| 2. Issues: read | Repository column (open counts), list with filters (state, assigned to me, labels, GitHub search syntax), detail with timeline: comments, events, labels, assignees, milestone, reactions, linked PRs | Done |
+| 3. Issues: write | Comment (editor + preview), edit/delete, close/reopen with reason, labels, assignees, milestone, title/body, reactions, new issue; optimistic updates | Next |
 | 4. PRs: read | List per repository; Conversation, Commits, Files changed; checks status | |
 | 5. PRs: review | Inline comments (multi-line), suggestions, pending review then submit (Approve / Request changes / Comment), replies, resolve threads, mark file viewed | |
 | 6. Later | Inbox from GitHub notifications, offline cache, cross-repository search | |
@@ -32,9 +32,12 @@ Each phase ships something usable on its own.
 - **API:** GraphQL for reads and most mutations (`timelineItems`,
   `reviewThreads`, `resolveReviewThread` and `markFileAsViewed` exist only
   there); REST for PR files/diff and markdown preview.
-- **Rendering "like GitHub":** use `bodyHTML` from GraphQL (GitHub-rendered
-  markdown), sanitize with DOMPurify, extend CSP `img-src` with
-  `camo.githubusercontent.com` and `*.githubusercontent.com` in phase 2.
+- **Rendering "like GitHub":** `bodyHTML` from GraphQL (GitHub-rendered
+  markdown) sanitized with DOMPurify; CSP `img-src` allows
+  `*.githubusercontent.com`. See "GitHub content" in the threat model.
+- **Issue lists use GitHub search** (`repo:o/n is:issue …`), so filters, sort
+  and free-text queries behave exactly like the github.com search box. Search is
+  eventually consistent: a brand-new issue can take a few seconds to appear.
 - **Repositories (phase 2):** start with repositories added locally whose origin
   is on GitHub (`repository_origin` already resolves `owner`/`repo`). Pinning
   remote-only repositories comes later.

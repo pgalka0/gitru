@@ -56,10 +56,18 @@ export const normalizeRemoteImageUrl = (value: string | undefined) => {
   }
 
   if (url.hostname === "avatars.githubusercontent.com") {
+    // `/u/e?email=` (commit authors), `/u/<id>` (users, from the API) and
+    // `/in/<id>` (GitHub Apps). Only GitHub's own sizing/cache parameters.
+    const allowedKeys =
+      url.pathname === "/u/e"
+        ? ["email", "s"]
+        : /^\/(?:u|in)\/\d+$/.test(url.pathname)
+          ? ["u", "v", "s"]
+          : null;
     if (
-      url.pathname !== "/u/e" ||
+      !allowedKeys ||
       Array.from(url.searchParams.keys()).some(
-        (key) => key !== "email" && key !== "s",
+        (key) => !allowedKeys.includes(key),
       )
     ) {
       return undefined;
@@ -95,4 +103,28 @@ export const bitbucketWorkspaceAvatarUrl = (workspace: string | undefined) => {
   return normalizeRemoteImageUrl(
     `https://bitbucket.org/workspaces/${workspace}/avatar/64`,
   );
+};
+
+/**
+ * Images inside GitHub-rendered markdown. GitHub proxies third-party images
+ * through camo, so only github.com and its content hosts are needed; the CSP
+ * `img-src` allows the same set.
+ */
+export const normalizeGithubContentImageUrl = (value: string | undefined) => {
+  if (!value) return undefined;
+  if (import.meta.env.MODE === "e2e") return undefined;
+
+  const normalized = normalizeExternalHttpsUrl(value);
+  if (!normalized) return undefined;
+
+  const url = new URL(normalized);
+  if (url.port !== "" && url.port !== "443") return undefined;
+  if (
+    url.hostname !== "github.com" &&
+    !url.hostname.endsWith(".githubusercontent.com")
+  ) {
+    return undefined;
+  }
+
+  return normalized;
 };

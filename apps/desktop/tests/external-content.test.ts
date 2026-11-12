@@ -3,6 +3,7 @@ import {
   githubAccountAvatarUrl,
   githubCommitterAvatarUrl,
   normalizeExternalHttpsUrl,
+  normalizeGithubContentImageUrl,
   normalizeRemoteImageUrl,
 } from "../src/lib/external-content";
 
@@ -44,6 +45,47 @@ describe("remote image validation", () => {
         "https://avatars.githubusercontent.com/u/e?email=a%40b.com&redirect=evil",
       ),
     ).toBeUndefined();
+  });
+
+  test("allows GitHub API avatars for users and apps", () => {
+    expect(
+      normalizeRemoteImageUrl(
+        "https://avatars.githubusercontent.com/u/9440455?u=c3d8f1421af362012ed0133c48dc639d2d66c369&v=4",
+      ),
+    ).toBe(
+      "https://avatars.githubusercontent.com/u/9440455?u=c3d8f1421af362012ed0133c48dc639d2d66c369&v=4",
+    );
+    expect(
+      normalizeRemoteImageUrl(
+        "https://avatars.githubusercontent.com/in/3557673?v=4",
+      ),
+    ).toBeDefined();
+    expect(
+      normalizeRemoteImageUrl(
+        "https://avatars.githubusercontent.com/u/1?v=4&redirect=evil",
+      ),
+    ).toBeUndefined();
+    expect(
+      normalizeRemoteImageUrl("https://avatars.githubusercontent.com/u/abc"),
+    ).toBeUndefined();
+  });
+
+  test("markdown images stay on GitHub content hosts", () => {
+    for (const allowed of [
+      "https://camo.githubusercontent.com/abc/def",
+      "https://private-user-images.githubusercontent.com/1/2.png?jwt=x",
+      "https://github.com/user-attachments/assets/123",
+    ]) {
+      expect(normalizeGithubContentImageUrl(allowed)).toBe(allowed);
+    }
+    for (const rejected of [
+      "https://evil.com/x.png",
+      "https://githubusercontent.com.evil.com/x.png",
+      "http://camo.githubusercontent.com/x",
+      "javascript:alert(1)",
+    ]) {
+      expect(normalizeGithubContentImageUrl(rejected)).toBeUndefined();
+    }
   });
 
   test("rejects malformed account names and safely encodes commit emails", () => {

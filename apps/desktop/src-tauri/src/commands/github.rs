@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use github::models::{AuthStatus, DeviceVerification, RepositoryRef, RepositorySummaryResult};
+use github::models::{
+    AuthStatus, DeviceVerification, IssueDetail, IssueDetailRequest, IssueListRequest, IssuePage,
+    Label, RepositoryRef, RepositorySummaryResult,
+};
 use github::GithubService;
 use tauri::{AppHandle, Emitter};
 
@@ -91,6 +94,33 @@ pub async fn github_repository_summaries(
 ) -> Result<Vec<RepositorySummaryResult>, String> {
     github
         .repository_summaries(repositories)
+        .await
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_list_issues(
+    request: IssueListRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<IssuePage, String> {
+    github.list_issues(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_issue(
+    request: IssueDetailRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<IssueDetail, String> {
+    github.issue(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_repository_labels(
+    repository: RepositoryRef,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<Vec<Label>, String> {
+    github
+        .repository_labels(repository)
         .await
         .map_err(String::from)
 }
