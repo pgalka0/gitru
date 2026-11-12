@@ -6,6 +6,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { StrictMode, useCallback, useEffect, useMemo, useRef } from "react";
 import { Toaster } from "sonner";
+import { GithubProvider } from "@/components/github/github-provider";
 import { WorkspaceSessionSnapshot } from "@/types/store";
 import { TabContextProvider } from "../context/tab-context-provider";
 import { colorKeyList } from "../lib/colors";
@@ -528,7 +529,9 @@ export function AppRoot() {
           themes={colorKeyList}
         >
           <CommandManagerProvider initialViewId="root">
-            <AppRouter />
+            <GithubProvider>
+              <AppRouter />
+            </GithubProvider>
             <Toaster />
             {showDevDiagnostics && (
               <ReactQueryDevtools

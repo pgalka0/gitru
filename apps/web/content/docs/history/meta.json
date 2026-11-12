@@ -1,7 +1,0 @@
-{
-  "title": "History",
-  "icon": "History",
-  "collapsible": false,
-  "defaultOpen": true,
-  "pages": ["commit-history", "commit-graph", "history-search"]
-}

@@ -179,6 +179,17 @@ pub(crate) fn git_binary_path() -> Result<PathBuf, String> {
     resolve_program_path("git")
 }
 
+/// Locate another developer tool (e.g. `gh`) with the same search directories
+/// used for `git`. GUI apps on macOS do not inherit the login shell `PATH`.
+pub fn resolve_tool_path(program: &str) -> Result<PathBuf, String> {
+    resolve_program_path(program)
+}
+
+/// `PATH` value to hand to spawned developer tools.
+pub fn tool_path_env() -> Result<OsString, String> {
+    git_path_env()
+}
+
 pub(crate) fn git_path_env() -> Result<OsString, String> {
     let search_dirs = preferred_tool_dirs();
     join_paths(&search_dirs)

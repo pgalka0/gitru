@@ -13,10 +13,6 @@ import { useRebaseOntoView } from "./views/rebase-onto";
 import { ActionItem, useRootView } from "./views/root";
 import { useSwitchRepositoryView } from "./views/switch-repository";
 import { ThemeItem, useSwitchThemeView } from "./views/switch-theme";
-import {
-  type UpdateChannelItem,
-  useSwitchUpdateChannelView,
-} from "./views/switch-update-channel";
 
 type RootAction = CommandViewConfig<"root", ActionItem>;
 type BranchListAction = CommandViewConfig<"branch-list", BranchItem>;
@@ -30,10 +26,6 @@ type SwitchRepositoryAction = CommandViewConfig<
   RepositoryInfo
 >;
 type SwitchThemeAction = CommandViewConfig<"switch-theme", ThemeItem>;
-type SwitchUpdateChannelAction = CommandViewConfig<
-  "switch-update-channel",
-  UpdateChannelItem
->;
 
 type Action =
   | RootAction
@@ -44,8 +36,7 @@ type Action =
   | InitRepositoryAction
   | RebaseOntoAction
   | SwitchRepositoryAction
-  | SwitchThemeAction
-  | SwitchUpdateChannelAction;
+  | SwitchThemeAction;
 
 export const ActionPanel = ({ children }: { children: React.ReactNode }) => {
   const views = [
@@ -58,7 +49,6 @@ export const ActionPanel = ({ children }: { children: React.ReactNode }) => {
     useRebaseOntoView(),
     useSwitchRepositoryView(),
     useSwitchThemeView(),
-    useSwitchUpdateChannelView(),
   ] as const satisfies Action[];
 
   const viewRegistry = createCommandViewRegistry(views);

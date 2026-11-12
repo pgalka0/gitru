@@ -13,7 +13,6 @@
       "!**/packages/commands",
       "!**/.temp",
       "!**/*.css",
-      "!**/drizzle",
       "!**/tauri",
       "!**/src-tauri/gen/**",
       "!**/crates",

@@ -10,8 +10,6 @@ Desktop Git client monorepo. Full map: root `AGENTS.md`.
 ## Layout
 
 - `apps/desktop` — Tauri + React product (main focus)
-- `apps/web` — Next.js marketing site
-- `apps/api` — Elysia API (auth, waitlist, etc.)
 - `packages/*` — shared TS (`commands`, `ui`, `icon`, `mascot`)
 - `crates/*` — shared Rust (`git`, `ipc`, `logger`)
 

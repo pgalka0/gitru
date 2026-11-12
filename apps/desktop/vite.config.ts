@@ -3,13 +3,12 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import type { UserConfig } from "vite";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 const config = defineConfig(async ({ mode }): Promise<UserConfig> => {
-  const env = loadEnv(mode, process.cwd(), "");
   return {
     esbuild: {
       drop: mode === "production" ? ["console", "debugger"] : [],
@@ -36,23 +35,6 @@ const config = defineConfig(async ({ mode }): Promise<UserConfig> => {
         : undefined,
       watch: {
         ignored: ["**/src-tauri/**"],
-      },
-      proxy: {
-        "/ingest/static": {
-          target: "https://us-assets.i.posthog.com",
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ingest/, ""),
-        },
-        "/ingest/array": {
-          target: "https://us-assets.i.posthog.com",
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ingest/, ""),
-        },
-        "/ingest": {
-          target: env.VITE_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ingest/, ""),
-        },
       },
     },
     resolve: {
