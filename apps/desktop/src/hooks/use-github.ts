@@ -44,6 +44,38 @@ export const githubKeys = {
       repository.owner.toLowerCase(),
       repository.name.toLowerCase(),
     ] as const,
+  issueMetadata: (repository: RepositoryRef) =>
+    [
+      ...githubKeys.all,
+      "issue-metadata",
+      repository.owner.toLowerCase(),
+      repository.name.toLowerCase(),
+    ] as const,
+  assignableUsers: (repository: RepositoryRef, query: string) =>
+    [
+      ...githubKeys.all,
+      "assignable-users",
+      repository.owner.toLowerCase(),
+      repository.name.toLowerCase(),
+      query,
+    ] as const,
+  markdown: (repository: RepositoryRef, text: string) =>
+    [
+      ...githubKeys.all,
+      "markdown",
+      repository.owner.toLowerCase(),
+      repository.name.toLowerCase(),
+      text,
+    ] as const,
+  /** Shared by every change to one issue, to know when the last one ends. */
+  issueChange: (repository: RepositoryRef, number: number) =>
+    [
+      ...githubKeys.all,
+      "issue-change",
+      repository.owner.toLowerCase(),
+      repository.name.toLowerCase(),
+      number,
+    ] as const,
 };
 
 const errorMessage = (error: unknown) =>

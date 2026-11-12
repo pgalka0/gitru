@@ -8,7 +8,7 @@ query IssueSearch($search: String!, $first: Int!, $after: String) {
         number title url state stateReason createdAt updatedAt closedAt
         author { login avatarUrl url }
         comments { totalCount }
-        labels(first: 10) { nodes { name color } }
+        labels(first: 10, orderBy: { field: NAME, direction: ASC }) { nodes { id name color } }
         assignees(first: 5) { nodes { login avatarUrl url } }
         milestone { title }
       }

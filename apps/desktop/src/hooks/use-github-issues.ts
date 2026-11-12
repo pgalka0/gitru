@@ -1,6 +1,9 @@
 import {
+  githubAssignableUsers,
   githubIssue,
   githubListIssues,
+  githubRenderMarkdown,
+  githubRepositoryIssueMetadata,
   githubRepositoryLabels,
   type IssueDetail,
   type IssueListRequest,
@@ -99,5 +102,62 @@ export function useGithubRepositoryLabels(
     },
     enabled: signedIn && repository !== undefined,
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Open milestones and whether the viewer may open issues. */
+export function useGithubIssueMetadata(repository: RepositoryRef | undefined) {
+  const signedIn = useIsGithubSignedIn();
+
+  return useQuery({
+    queryKey: githubKeys.issueMetadata(repository ?? { owner: "", name: "" }),
+    queryFn: () => {
+      if (!repository) throw new Error("No repository selected");
+      return githubRepositoryIssueMetadata({ repository });
+    },
+    enabled: signedIn && repository !== undefined,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Up to 20 users who can be assigned, filtered by login or name. */
+export function useGithubAssignableUsers(
+  repository: RepositoryRef,
+  query: string,
+  enabled: boolean,
+) {
+  const signedIn = useIsGithubSignedIn();
+  const trimmed = query.trim();
+
+  return useQuery({
+    queryKey: githubKeys.assignableUsers(repository, trimmed),
+    queryFn: () =>
+      githubAssignableUsers({
+        request: { repository, query: trimmed || undefined },
+      }),
+    enabled: signedIn && enabled,
+    staleTime: 5 * 60_000,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * GitHub's rendering of a draft, so the preview matches the posted comment
+ * (references, emoji, task lists). Untrusted HTML: render it through
+ * `GithubMarkdown`, which sanitizes.
+ */
+export function useGithubMarkdownPreview(
+  repository: RepositoryRef,
+  text: string,
+  enabled: boolean,
+) {
+  const signedIn = useIsGithubSignedIn();
+
+  return useQuery({
+    queryKey: githubKeys.markdown(repository, text),
+    queryFn: () => githubRenderMarkdown({ request: { repository, text } }),
+    enabled: signedIn && enabled && text.trim().length > 0,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 60_000,
   });
 }

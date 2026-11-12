@@ -117,6 +117,31 @@ impl GithubClient {
         })
     }
 
+    /// Render GitHub-flavoured markdown the way a comment in `context`
+    /// (`owner/name`) would look. REST only: GraphQL has no equivalent. The
+    /// REST rate limit is not recorded so the status keeps showing GraphQL's.
+    pub async fn render_markdown(&self, text: &str, context: &str) -> Result<String, GithubError> {
+        let response = self
+            .http
+            .post(self.endpoints.markdown_url())
+            .bearer_auth(self.token.expose())
+            .header(ACCEPT, "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", API_VERSION)
+            .json(&json!({ "text": text, "mode": "gfm", "context": context }))
+            .send()
+            .await
+            .map_err(GithubError::network)?;
+
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body = response.bytes().await.map_err(GithubError::network)?;
+        if !status.is_success() {
+            return Err(classify_http_error(status, &headers, &body));
+        }
+        String::from_utf8(body.to_vec())
+            .map_err(|_| GithubError::Decode("markdown preview is not UTF-8".to_string()))
+    }
+
     /// Run a GraphQL operation where any error fails the whole call.
     pub async fn query<T: DeserializeOwned>(
         &self,

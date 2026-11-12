@@ -3,8 +3,12 @@
 use std::sync::Arc;
 
 use github::models::{
-    AuthStatus, DeviceVerification, IssueDetail, IssueDetailRequest, IssueListRequest, IssuePage,
-    Label, RepositoryRef, RepositorySummaryResult,
+    AddCommentRequest, AssignableUsersRequest, AuthStatus, ChangeAssigneesRequest,
+    ChangeLabelsRequest, CloseIssueRequest, CreateIssueRequest, CreatedIssue, DeviceVerification,
+    EditCommentRequest, EditIssueRequest, IssueContent, IssueDetail, IssueDetailRequest,
+    IssueListRequest, IssuePage, IssueStateUpdate, Label, MilestoneUpdate, ReactionGroup,
+    RenderMarkdownRequest, RepositoryIssueMetadata, RepositoryRef, RepositorySummaryResult,
+    SetMilestoneRequest, SetReactionRequest, TimelineItem, User,
 };
 use github::GithubService;
 use tauri::{AppHandle, Emitter};
@@ -123,4 +127,127 @@ pub async fn github_repository_labels(
         .repository_labels(repository)
         .await
         .map_err(String::from)
+}
+
+// Issue changes. Each wrapper validates nothing itself: `crates/github` checks
+// every ID and text before a request is built.
+
+#[tauri::command]
+pub async fn github_add_comment(
+    request: AddCommentRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<TimelineItem, String> {
+    github.add_comment(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_edit_comment(
+    request: EditCommentRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<TimelineItem, String> {
+    github.edit_comment(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_delete_comment(
+    comment_id: String,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<(), String> {
+    github
+        .delete_comment(&comment_id)
+        .await
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_edit_issue(
+    request: EditIssueRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<IssueContent, String> {
+    github.edit_issue(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_close_issue(
+    request: CloseIssueRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<IssueStateUpdate, String> {
+    github.close_issue(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_reopen_issue(
+    issue_id: String,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<IssueStateUpdate, String> {
+    github.reopen_issue(&issue_id).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_change_labels(
+    request: ChangeLabelsRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<Vec<Label>, String> {
+    github.change_labels(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_change_assignees(
+    request: ChangeAssigneesRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<Vec<User>, String> {
+    github.change_assignees(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_set_milestone(
+    request: SetMilestoneRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<MilestoneUpdate, String> {
+    github.set_milestone(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_set_reaction(
+    request: SetReactionRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<Vec<ReactionGroup>, String> {
+    github.set_reaction(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_create_issue(
+    request: CreateIssueRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<CreatedIssue, String> {
+    github.create_issue(request).await.map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_repository_issue_metadata(
+    repository: RepositoryRef,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<RepositoryIssueMetadata, String> {
+    github
+        .repository_issue_metadata(repository)
+        .await
+        .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn github_assignable_users(
+    request: AssignableUsersRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<Vec<User>, String> {
+    github.assignable_users(request).await.map_err(String::from)
+}
+
+/// GitHub-rendered HTML for a draft. Untrusted: the UI sanitizes it like any
+/// other `bodyHTML`.
+#[tauri::command]
+pub async fn github_render_markdown(
+    request: RenderMarkdownRequest,
+    github: tauri::State<'_, Arc<GithubService>>,
+) -> Result<String, String> {
+    github.render_markdown(request).await.map_err(String::from)
 }

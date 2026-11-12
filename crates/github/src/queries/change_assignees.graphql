@@ -1,0 +1,9 @@
+# Mutation fields run in order, so `removed` (when present) is the final state.
+mutation ChangeAssignees($id: ID!, $add: [ID!]!, $remove: [ID!]!, $adding: Boolean!, $removing: Boolean!) {
+  added: addAssigneesToAssignable(input: { assignableId: $id, assigneeIds: $add }) @include(if: $adding) {
+    assignable { assignees(first: 20) { nodes { id login avatarUrl url } } }
+  }
+  removed: removeAssigneesFromAssignable(input: { assignableId: $id, assigneeIds: $remove }) @include(if: $removing) {
+    assignable { assignees(first: 20) { nodes { id login avatarUrl url } } }
+  }
+}

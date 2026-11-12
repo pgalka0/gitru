@@ -1,0 +1,9 @@
+# Mutation fields run in order, so `removed` (when present) is the final state.
+mutation ChangeLabels($id: ID!, $add: [ID!]!, $remove: [ID!]!, $adding: Boolean!, $removing: Boolean!) {
+  added: addLabelsToLabelable(input: { labelableId: $id, labelIds: $add }) @include(if: $adding) {
+    labelable { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { id name color description } } }
+  }
+  removed: removeLabelsFromLabelable(input: { labelableId: $id, labelIds: $remove }) @include(if: $removing) {
+    labelable { labels(first: 100, orderBy: { field: NAME, direction: ASC }) { nodes { id name color description } } }
+  }
+}

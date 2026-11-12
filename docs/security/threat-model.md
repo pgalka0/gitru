@@ -56,6 +56,25 @@ reach the DOM, on top of the CSP:
 - only GitHub's own markdown classes are kept, so content cannot reuse the
   app's utility classes to overlay or restyle the UI.
 
+## Writing to GitHub
+
+Comments, edits, state changes, labels, assignees, milestones, reactions and new
+issues are GraphQL mutations sent by `crates/github`; the webview only passes
+node IDs and text through typed commands.
+
+- Every command validates its input in Rust before any request: node IDs match
+  GitHub's character set and length, bodies and titles are length-limited,
+  titles are a single line, and an add/remove change must not overlap.
+- The webview cannot choose the operation document: each command maps to one
+  fixed GraphQL document compiled into the binary.
+- Markdown preview sends the draft to GitHub's REST `POST /markdown` (with the
+  repository as context so `#123` and `@user` resolve). Drafts therefore leave
+  the machine when the Preview tab is opened, never while typing. The returned
+  HTML goes through the same sanitizer as any other GitHub content.
+- What the UI offers follows the `viewerCan*` and `viewerPermission` fields
+  GitHub reports for the signed-in user; GitHub stays the authority and its
+  refusals are shown, not retried.
+
 ## Telemetry and updates
 
 This fork ships no analytics and no self-updater. The app makes no network

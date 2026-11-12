@@ -3,6 +3,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 use tokio::sync::{OnceCell, RwLock};
 
 use crate::{
@@ -16,11 +18,20 @@ use crate::{
     endpoints::Endpoints,
     error::GithubError,
     graphql::{self, RepositorySummaryNode, ViewerData},
+    issue_mutations::{
+        self as mutations, AddCommentData, AssignableUsersData, ChangeAssigneesData,
+        ChangeLabelsData, CreateIssueData, DeleteCommentData, IssueStateData, ReactionData,
+        RepositoryIssueMetadataData, UpdateCommentData, UpdateIssueData,
+    },
     issues::{self, IssueDetailData, IssueSearchData, RepositoryLabelsData},
     models::{
-        AuthStatus, DeviceVerification, IssueDetail, IssueDetailRequest, IssueListRequest,
-        IssuePage, Label, RepositoryRef, RepositorySummary, RepositorySummaryResult, TokenSource,
-        Viewer,
+        AddCommentRequest, AssignableUsersRequest, AuthStatus, ChangeAssigneesRequest,
+        ChangeLabelsRequest, CloseIssueRequest, CreateIssueRequest, CreatedIssue,
+        DeviceVerification, EditCommentRequest, EditIssueRequest, IssueContent, IssueDetail,
+        IssueDetailRequest, IssueListRequest, IssuePage, IssueStateUpdate, Label, MilestoneUpdate,
+        ReactionGroup, RenderMarkdownRequest, RepositoryIssueMetadata, RepositoryRef,
+        RepositorySummary, RepositorySummaryResult, SetMilestoneRequest, SetReactionRequest,
+        TimelineItem, TokenSource, User, Viewer,
     },
 };
 
@@ -319,6 +330,181 @@ impl GithubService {
         Ok(labels)
     }
 
+    pub async fn add_comment(
+        &self,
+        request: AddCommentRequest,
+    ) -> Result<TimelineItem, GithubError> {
+        let variables = mutations::add_comment_variables(&request)?;
+        self.graphql::<AddCommentData>(mutations::ADD_COMMENT_MUTATION, variables)
+            .await?
+            .into_item()
+    }
+
+    pub async fn edit_comment(
+        &self,
+        request: EditCommentRequest,
+    ) -> Result<TimelineItem, GithubError> {
+        let variables = mutations::edit_comment_variables(&request)?;
+        self.graphql::<UpdateCommentData>(mutations::UPDATE_COMMENT_MUTATION, variables)
+            .await?
+            .into_item()
+    }
+
+    pub async fn delete_comment(&self, comment_id: &str) -> Result<(), GithubError> {
+        let variables = mutations::delete_comment_variables(comment_id)?;
+        self.graphql::<DeleteCommentData>(mutations::DELETE_COMMENT_MUTATION, variables)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn edit_issue(&self, request: EditIssueRequest) -> Result<IssueContent, GithubError> {
+        let variables = mutations::edit_issue_variables(&request)?;
+        self.graphql::<UpdateIssueData>(mutations::UPDATE_ISSUE_MUTATION, variables)
+            .await?
+            .into_content()
+    }
+
+    pub async fn close_issue(
+        &self,
+        request: CloseIssueRequest,
+    ) -> Result<IssueStateUpdate, GithubError> {
+        let variables = mutations::close_issue_variables(&request)?;
+        self.graphql::<IssueStateData>(mutations::CLOSE_ISSUE_MUTATION, variables)
+            .await?
+            .into_update()
+    }
+
+    pub async fn reopen_issue(&self, issue_id: &str) -> Result<IssueStateUpdate, GithubError> {
+        let variables = mutations::reopen_issue_variables(issue_id)?;
+        self.graphql::<IssueStateData>(mutations::REOPEN_ISSUE_MUTATION, variables)
+            .await?
+            .into_update()
+    }
+
+    /// The issue's labels after the change.
+    pub async fn change_labels(
+        &self,
+        request: ChangeLabelsRequest,
+    ) -> Result<Vec<Label>, GithubError> {
+        let variables = mutations::change_labels_variables(&request)?;
+        self.graphql::<ChangeLabelsData>(mutations::CHANGE_LABELS_MUTATION, variables)
+            .await?
+            .into_labels()
+    }
+
+    /// The issue's assignees after the change.
+    pub async fn change_assignees(
+        &self,
+        request: ChangeAssigneesRequest,
+    ) -> Result<Vec<User>, GithubError> {
+        let variables = mutations::change_assignees_variables(&request)?;
+        self.graphql::<ChangeAssigneesData>(mutations::CHANGE_ASSIGNEES_MUTATION, variables)
+            .await?
+            .into_users()
+    }
+
+    pub async fn set_milestone(
+        &self,
+        request: SetMilestoneRequest,
+    ) -> Result<MilestoneUpdate, GithubError> {
+        let variables = mutations::set_milestone_variables(&request)?;
+        self.graphql::<UpdateIssueData>(mutations::UPDATE_ISSUE_MUTATION, variables)
+            .await?
+            .into_milestone()
+    }
+
+    /// The subject's reactions after the change.
+    pub async fn set_reaction(
+        &self,
+        request: SetReactionRequest,
+    ) -> Result<Vec<ReactionGroup>, GithubError> {
+        let (document, variables) = mutations::reaction_request(&request)?;
+        self.graphql::<ReactionData>(document, variables)
+            .await?
+            .into_reactions()
+    }
+
+    pub async fn create_issue(
+        &self,
+        request: CreateIssueRequest,
+    ) -> Result<CreatedIssue, GithubError> {
+        mutations::validate_create_issue(&request)?;
+        let (repository_id, metadata) = self.issue_metadata(&request.repository).await?;
+        if !metadata.can_create_issues {
+            return Err(GithubError::InvalidInput(format!(
+                "You cannot open issues in {}/{}",
+                request.repository.owner, request.repository.name
+            )));
+        }
+        let variables = mutations::create_issue_variables(&request, &repository_id)?;
+        self.graphql::<CreateIssueData>(mutations::CREATE_ISSUE_MUTATION, variables)
+            .await?
+            .into_created()
+    }
+
+    /// Open milestones and whether the viewer may open issues.
+    pub async fn repository_issue_metadata(
+        &self,
+        repository: RepositoryRef,
+    ) -> Result<RepositoryIssueMetadata, GithubError> {
+        Ok(self.issue_metadata(&repository).await?.1)
+    }
+
+    /// Up to 20 users who can be assigned, optionally filtered by login/name.
+    pub async fn assignable_users(
+        &self,
+        request: AssignableUsersRequest,
+    ) -> Result<Vec<User>, GithubError> {
+        let variables = mutations::assignable_users_variables(&request)?;
+        self.graphql::<AssignableUsersData>(mutations::ASSIGNABLE_USERS_QUERY, variables)
+            .await?
+            .into_users()
+            .ok_or_else(|| repository_not_found(&request.repository))
+    }
+
+    /// GitHub-rendered HTML for a draft. Untrusted, like any `bodyHTML`.
+    pub async fn render_markdown(
+        &self,
+        request: RenderMarkdownRequest,
+    ) -> Result<String, GithubError> {
+        request.repository.validate()?;
+        let text = mutations::markdown_text(&request.text)?;
+        if text.trim().is_empty() {
+            return Ok(String::new());
+        }
+        let context = format!("{}/{}", request.repository.owner, request.repository.name);
+        let client = self.client().await?;
+        self.guard(client.render_markdown(text, &context).await)
+            .await
+    }
+
+    async fn issue_metadata(
+        &self,
+        repository: &RepositoryRef,
+    ) -> Result<(String, RepositoryIssueMetadata), GithubError> {
+        let variables = mutations::repository_variables(repository)?;
+        self.graphql::<RepositoryIssueMetadataData>(
+            mutations::REPOSITORY_ISSUE_METADATA_QUERY,
+            variables,
+        )
+        .await?
+        .into_metadata()
+        .ok_or_else(|| repository_not_found(repository))
+    }
+
+    /// A GraphQL call where any error fails the whole operation.
+    async fn graphql<T: DeserializeOwned>(
+        &self,
+        document: &str,
+        variables: Value,
+    ) -> Result<T, GithubError> {
+        let client = self.client().await?;
+        let (data, _) = self
+            .guard(client.query::<T>(document, variables).await)
+            .await?;
+        Ok(data)
+    }
+
     async fn client(&self) -> Result<Arc<GithubClient>, GithubError> {
         self.ensure_restored().await;
         self.session
@@ -447,6 +633,13 @@ impl GithubService {
                 GithubError::CredentialStore("credential removal was interrupted".into())
             })?
     }
+}
+
+fn repository_not_found(repository: &RepositoryRef) -> GithubError {
+    GithubError::InvalidInput(format!(
+        "Repository {}/{} was not found",
+        repository.owner, repository.name
+    ))
 }
 
 async fn fetch_viewer(client: &GithubClient) -> Result<(Viewer, Option<Vec<String>>), GithubError> {

@@ -1,0 +1,5 @@
+mutation UpdateIssue($input: UpdateIssueInput!) {
+  updateIssue(input: $input) {
+    issue { title body bodyHTML lastEditedAt milestone { id title url dueOn } }
+  }
+}

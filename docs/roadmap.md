@@ -11,8 +11,8 @@ Each phase ships something usable on its own.
 | 0. Cut from upstream | Remove updater, analytics, release/signing CI, `apps/web`, `apps/api`; own bundle identifier | Done |
 | 1. Foundation | `crates/github`: sign-in (Device Flow, GitHub CLI import), OS keychain, GraphQL client, rate limits; account button in the sidebar; Issues screen listing local GitHub repositories with open issue/PR counts | Done |
 | 2. Issues: read | Repository column (open counts), list with filters (state, assigned to me, labels, GitHub search syntax), detail with timeline: comments, events, labels, assignees, milestone, reactions, linked PRs | Done |
-| 3. Issues: write | Comment (editor + preview), edit/delete, close/reopen with reason, labels, assignees, milestone, title/body, reactions, new issue; optimistic updates | Next |
-| 4. PRs: read | List per repository; Conversation, Commits, Files changed; checks status | |
+| 3. Issues: write | Comment (editor + preview), edit/delete, close/reopen with reason, labels, assignees, milestone, title/body, reactions, new issue; optimistic updates | Done |
+| 4. PRs: read | List per repository; Conversation, Commits, Files changed; checks status | Next |
 | 5. PRs: review | Inline comments (multi-line), suggestions, pending review then submit (Approve / Request changes / Comment), replies, resolve threads, mark file viewed | |
 | 6. Later | Inbox from GitHub notifications, offline cache, cross-repository search | |
 
@@ -47,5 +47,11 @@ Each phase ships something usable on its own.
 - **Inline review (phase 5):** `@pierre/diffs` `DiffLineAnnotation { side,
   lineNumber }` maps 1:1 to GitHub review comments `{ side: LEFT|RIGHT, line }`;
   the hook is already used in `features/git/components/diff-area.tsx`.
+- **Writes (phase 3):** GraphQL mutations by node ID. Label and assignee changes
+  send only the difference (`add…`/`remove…` in one request). Controls follow
+  GitHub's `viewerCan*` fields, so the UI never offers what GitHub would refuse.
+  The UI updates optimistically and rolls back with an explanation on error;
+  issue lists are patched in place instead of refetched, because search lags
+  behind writes.
 - **Refresh:** poll about every 60 s while the window is focused; GitHub does not
   push to desktop clients.

@@ -66,7 +66,7 @@ async fn list_issues_sends_filters_as_search_syntax_and_maps_the_page() {
                 "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-05T00:00:00Z",
                 "closedAt": "2026-01-05T00:00:00Z", "author": actor("mona"),
                 "comments": { "totalCount": 4 },
-                "labels": { "nodes": [{ "name": "bug", "color": "d73a4a" }] },
+                "labels": { "nodes": [{ "id": "LA_1", "name": "bug", "color": "d73a4a" }] },
                 "assignees": { "nodes": [actor("octocat")] },
                 "milestone": null
             }]
@@ -111,17 +111,21 @@ async fn issue_detail_maps_metadata_and_requests_the_next_timeline_page() {
         .and(body_partial_json(json!({ "variables": {
             "owner": "octo", "name": "hello", "number": 42, "after": "cursor-100"
         }})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": { "repository": { "issue": {
-            "number": 42, "title": "Crash on start", "url": "https://github.com/octo/hello/issues/42",
-            "state": "OPEN", "stateReason": null, "bodyHTML": "<p>Steps</p>",
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": { "repository": {
+          "viewerPermission": "READ", "isArchived": false,
+          "issue": {
+            "id": "I_42", "number": 42, "title": "Crash on start", "url": "https://github.com/octo/hello/issues/42",
+            "state": "OPEN", "stateReason": null, "body": "Steps", "bodyHTML": "<p>Steps</p>",
+            "viewerCanUpdate": false, "viewerCanClose": false, "viewerCanReopen": false, "viewerCanReact": true,
+            "viewerCanLabel": false, "viewerCanAssign": false, "viewerCanSetMilestone": false,
             "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-05T00:00:00Z",
             "closedAt": null, "lastEditedAt": "2026-01-02T00:00:00Z",
             "author": null, "authorAssociation": "NONE",
-            "locked": false, "activeLockReason": null,
+            "locked": true, "activeLockReason": "TOO_HEATED",
             "comments": { "totalCount": 120 },
-            "labels": { "nodes": [{ "name": "bug", "color": "d73a4a", "description": "Something is broken" }] },
+            "labels": { "nodes": [{ "id": "LA_1", "name": "bug", "color": "d73a4a", "description": "Something is broken" }] },
             "assignees": { "nodes": [] },
-            "milestone": { "title": "v1", "url": "https://github.com/octo/hello/milestone/1", "state": "OPEN", "dueOn": null },
+            "milestone": { "id": "MI_1", "title": "v1", "url": "https://github.com/octo/hello/milestone/1", "dueOn": null },
             "participants": { "totalCount": 31, "nodes": [actor("mona")] },
             "reactionGroups": [
                 { "content": "THUMBS_UP", "reactors": { "totalCount": 7 }, "viewerHasReacted": false },
@@ -136,7 +140,8 @@ async fn issue_detail_maps_metadata_and_requests_the_next_timeline_page() {
                 "pageInfo": { "hasNextPage": false, "endCursor": "cursor-130" },
                 "nodes": [
                     { "__typename": "IssueComment", "id": "IC_101", "url": "https://github.com/octo/hello/issues/42#issuecomment-101",
-                      "bodyHTML": "<p>Same here</p>", "createdAt": "2026-01-03T00:00:00Z", "lastEditedAt": null,
+                      "body": "Same here", "bodyHTML": "<p>Same here</p>", "createdAt": "2026-01-03T00:00:00Z", "lastEditedAt": null,
+                      "viewerCanUpdate": true, "viewerCanDelete": true, "viewerCanReact": true,
                       "authorAssociation": "CONTRIBUTOR", "isMinimized": false, "minimizedReason": null,
                       "author": actor("mona"), "reactionGroups": [] },
                     { "__typename": "AssignedEvent", "id": "AE_1", "createdAt": "2026-01-04T00:00:00Z",
@@ -158,7 +163,16 @@ async fn issue_detail_maps_metadata_and_requests_the_next_timeline_page() {
         .unwrap();
 
     assert_eq!(issue.state, IssueState::Open);
+    assert_eq!(issue.id, "I_42");
+    assert_eq!(issue.body, "Steps");
     assert_eq!(issue.author, None, "ghost author");
+    assert!(issue.viewer.can_react);
+    assert!(
+        !issue.viewer.can_comment,
+        "a locked issue only takes comments from writers"
+    );
+    assert_eq!(issue.labels[0].id, "LA_1");
+    assert_eq!(issue.milestone.as_ref().unwrap().id, "MI_1");
     assert_eq!(issue.milestone.as_ref().unwrap().title, "v1");
     assert_eq!(issue.participant_count, 31);
     assert_eq!(issue.reactions.len(), 1);
@@ -177,6 +191,9 @@ async fn issue_detail_maps_metadata_and_requests_the_next_timeline_page() {
         issue.timeline.items[1].assignee.as_ref().unwrap().login,
         "mona"
     );
+    let comment = &issue.timeline.items[0];
+    assert_eq!(comment.body.as_deref(), Some("Same here"));
+    assert!(comment.viewer_can_update && comment.viewer_can_delete);
     assert_eq!(issue.timeline.end_cursor.as_deref(), Some("cursor-130"));
 }
 
@@ -251,7 +268,7 @@ async fn repository_labels_follow_pagination() {
         .respond_with(ResponseTemplate::new(200).set_body_json(
             json!({ "data": { "repository": { "labels": {
                 "pageInfo": { "hasNextPage": true, "endCursor": "page-2" },
-                "nodes": [{ "name": "bug", "color": "d73a4a", "description": "" }]
+                "nodes": [{ "id": "LA_1", "name": "bug", "color": "d73a4a", "description": "" }]
             }}}}),
         ))
         .expect(1)
@@ -265,7 +282,7 @@ async fn repository_labels_follow_pagination() {
         .respond_with(ResponseTemplate::new(200).set_body_json(
             json!({ "data": { "repository": { "labels": {
                 "pageInfo": { "hasNextPage": false, "endCursor": "page-3" },
-                "nodes": [{ "name": "docs", "color": "0075ca", "description": "Documentation" }]
+                "nodes": [{ "id": "LA_2", "name": "docs", "color": "0075ca", "description": "Documentation" }]
             }}}}),
         ))
         .expect(1)

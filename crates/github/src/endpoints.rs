@@ -21,6 +21,11 @@ impl Endpoints {
         format!("{}/graphql", self.api.trim_end_matches('/'))
     }
 
+    /// REST `POST /markdown`, used for comment previews.
+    pub fn markdown_url(&self) -> String {
+        format!("{}/markdown", self.api.trim_end_matches('/'))
+    }
+
     pub fn device_code_url(&self) -> String {
         format!("{}/login/device/code", self.web.trim_end_matches('/'))
     }

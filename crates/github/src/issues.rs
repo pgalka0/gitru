@@ -10,9 +10,10 @@ use serde_json::{Value, json};
 use crate::{
     error::GithubError,
     models::{
-        Actor, IssueDetail, IssueDetailRequest, IssueListRequest, IssuePage, IssueSort, IssueState,
-        IssueStateFilter, IssueStateReason, IssueSummary, Label, Milestone, ReactionGroup,
-        Reference, ReferenceKind, RepositoryRef, TimelineItem, TimelineItemKind, TimelinePage,
+        Actor, IssueDetail, IssueDetailRequest, IssueListRequest, IssuePage, IssuePermissions,
+        IssueSort, IssueState, IssueStateFilter, IssueStateReason, IssueSummary, Label, Milestone,
+        ReactionContent, ReactionGroup, Reference, ReferenceKind, RepositoryRef, TimelineItem,
+        TimelineItemKind, TimelinePage, User,
     },
 };
 
@@ -32,7 +33,7 @@ pub(crate) const MAX_LABEL_PAGES: usize = 5;
 // Requests
 // ---------------------------------------------------------------------------
 
-fn validate_cursor(cursor: Option<&str>) -> Result<(), GithubError> {
+pub(crate) fn validate_cursor(cursor: Option<&str>) -> Result<(), GithubError> {
     match cursor {
         Some(cursor) if cursor.is_empty() || cursor.len() > MAX_CURSOR_LEN => {
             Err(GithubError::InvalidInput("Invalid page cursor".to_string()))
@@ -146,7 +147,7 @@ pub(crate) fn repository_labels_variables(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ActorNode {
+pub(crate) struct ActorNode {
     login: String,
     avatar_url: String,
     url: String,
@@ -162,15 +163,35 @@ impl From<ActorNode> for Actor {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UserNode {
+    id: String,
+    login: String,
+    avatar_url: String,
+    url: String,
+}
+
+impl From<UserNode> for User {
+    fn from(node: UserNode) -> Self {
+        Self {
+            id: node.id,
+            login: node.login,
+            avatar_url: node.avatar_url,
+            html_url: node.url,
+        }
+    }
+}
+
 /// A GraphQL connection's `nodes`, which may contain `null` entries.
 #[derive(Deserialize)]
-struct Nodes<T> {
+pub(crate) struct Nodes<T> {
     #[serde(default = "Vec::new")]
     nodes: Vec<Option<T>>,
 }
 
 impl<T> Nodes<T> {
-    fn into_vec<U: From<T>>(self) -> Vec<U> {
+    pub(crate) fn into_vec<U: From<T>>(self) -> Vec<U> {
         self.nodes.into_iter().flatten().map(U::from).collect()
     }
 }
@@ -189,7 +210,8 @@ struct PageInfo {
 }
 
 #[derive(Deserialize)]
-struct LabelNode {
+pub(crate) struct LabelNode {
+    id: String,
     name: String,
     color: String,
     description: Option<String>,
@@ -198,6 +220,7 @@ struct LabelNode {
 impl From<LabelNode> for Label {
     fn from(node: LabelNode) -> Self {
         Self {
+            id: node.id,
             name: node.name,
             color: node.color,
             description: node.description.filter(|d| !d.trim().is_empty()),
@@ -218,17 +241,19 @@ struct RepositoryNameNode {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ReactionGroupNode {
-    content: String,
+pub(crate) struct ReactionGroupNode {
+    content: ReactionContent,
     reactors: Count,
     viewer_has_reacted: bool,
 }
 
-fn reactions(groups: Option<Vec<ReactionGroupNode>>) -> Vec<ReactionGroup> {
+/// Used reactions only; kinds this build does not know are dropped because the
+/// UI could neither show nor toggle them.
+pub(crate) fn reactions(groups: Option<Vec<ReactionGroupNode>>) -> Vec<ReactionGroup> {
     groups
         .unwrap_or_default()
         .into_iter()
-        .filter(|group| group.reactors.total_count > 0)
+        .filter(|group| group.reactors.total_count > 0 && group.content != ReactionContent::Other)
         .map(|group| ReactionGroup {
             content: group.content,
             count: group.reactors.total_count,
@@ -469,20 +494,51 @@ pub(crate) struct IssueDetailData {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct IssueRepositoryNode {
+    /// `ADMIN`, `MAINTAIN`, `WRITE`, `TRIAGE`, `READ`; `null` without access.
+    viewer_permission: Option<String>,
+    #[serde(default)]
+    is_archived: bool,
     issue: Option<IssueDetailNode>,
+}
+
+/// GitHub only lets collaborators with write access comment on locked issues.
+fn can_comment(repository: &IssueRepositoryNode, locked: bool) -> bool {
+    let writer = matches!(
+        repository.viewer_permission.as_deref(),
+        Some("ADMIN" | "MAINTAIN" | "WRITE")
+    );
+    !repository.is_archived && (!locked || writer)
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct IssueDetailNode {
+    id: String,
     number: u32,
     title: String,
     url: String,
     state: IssueState,
     state_reason: Option<IssueStateReason>,
+    #[serde(default)]
+    body: String,
     #[serde(rename = "bodyHTML")]
     body_html: String,
+    #[serde(default)]
+    viewer_can_update: bool,
+    #[serde(default)]
+    viewer_can_close: bool,
+    #[serde(default)]
+    viewer_can_reopen: bool,
+    #[serde(default)]
+    viewer_can_react: bool,
+    #[serde(default)]
+    viewer_can_label: bool,
+    #[serde(default)]
+    viewer_can_assign: bool,
+    #[serde(default)]
+    viewer_can_set_milestone: bool,
     created_at: String,
     updated_at: String,
     closed_at: Option<String>,
@@ -493,7 +549,7 @@ struct IssueDetailNode {
     active_lock_reason: Option<String>,
     comments: Count,
     labels: Option<Nodes<LabelNode>>,
-    assignees: Nodes<ActorNode>,
+    assignees: Nodes<UserNode>,
     milestone: Option<MilestoneNode>,
     participants: ParticipantConnection,
     reaction_groups: Option<Vec<ReactionGroupNode>>,
@@ -503,10 +559,22 @@ struct IssueDetailNode {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct MilestoneNode {
+pub(crate) struct MilestoneNode {
+    id: String,
     title: String,
     url: String,
     due_on: Option<String>,
+}
+
+impl From<MilestoneNode> for Milestone {
+    fn from(node: MilestoneNode) -> Self {
+        Self {
+            id: node.id,
+            title: node.title,
+            html_url: node.url,
+            due_on: node.due_on,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -530,16 +598,29 @@ struct TimelineConnection {
 impl IssueDetailData {
     /// `None` when the repository or issue does not exist or is not visible.
     pub(crate) fn into_detail(self) -> Option<IssueDetail> {
-        let issue = self.repository?.issue?;
+        let mut repository = self.repository?;
+        let issue = repository.issue.take()?;
         let timeline = issue.timeline_items;
+        let viewer = IssuePermissions {
+            can_update: issue.viewer_can_update,
+            can_close: issue.viewer_can_close,
+            can_reopen: issue.viewer_can_reopen,
+            can_react: issue.viewer_can_react,
+            can_comment: can_comment(&repository, issue.locked),
+            can_label: issue.viewer_can_label,
+            can_assign: issue.viewer_can_assign,
+            can_set_milestone: issue.viewer_can_set_milestone,
+        };
 
         Some(IssueDetail {
+            id: issue.id,
             number: issue.number,
             title: issue.title,
             html_url: issue.url,
             state: issue.state,
             state_reason: issue.state_reason,
             body_html: issue.body_html,
+            body: issue.body,
             author: issue.author.map(Actor::from),
             author_association: issue.author_association,
             created_at: issue.created_at,
@@ -551,11 +632,7 @@ impl IssueDetailData {
             comments: issue.comments.total_count,
             labels: issue.labels.map(Nodes::into_vec).unwrap_or_default(),
             assignees: issue.assignees.into_vec(),
-            milestone: issue.milestone.map(|m| Milestone {
-                title: m.title,
-                html_url: m.url,
-                due_on: m.due_on,
-            }),
+            milestone: issue.milestone.map(Milestone::from),
             participants: issue
                 .participants
                 .nodes
@@ -579,6 +656,7 @@ impl IssueDetailData {
                 has_next_page: timeline.page_info.has_next_page,
                 end_cursor: timeline.page_info.end_cursor,
             },
+            viewer,
         })
     }
 }
@@ -596,6 +674,13 @@ struct TimelineNode {
     author: Option<ActorNode>,
     #[serde(rename = "bodyHTML")]
     body_html: Option<String>,
+    body: Option<String>,
+    #[serde(default)]
+    viewer_can_update: bool,
+    #[serde(default)]
+    viewer_can_delete: bool,
+    #[serde(default)]
+    viewer_can_react: bool,
     url: Option<String>,
     last_edited_at: Option<String>,
     author_association: Option<String>,
@@ -648,7 +733,7 @@ fn timeline_kind(typename: &str) -> Option<TimelineItemKind> {
     })
 }
 
-fn timeline_item(value: Value) -> Option<TimelineItem> {
+pub(crate) fn timeline_item(value: Value) -> Option<TimelineItem> {
     let node: TimelineNode = match serde_json::from_value(value) {
         Ok(node) => node,
         Err(error) => {
@@ -676,6 +761,10 @@ fn timeline_item(value: Value) -> Option<TimelineItem> {
         created_at: node.created_at?,
         actor: node.author.or(node.actor).map(Actor::from),
         body_html: node.body_html,
+        body: node.body,
+        viewer_can_update: node.viewer_can_update,
+        viewer_can_delete: node.viewer_can_delete,
+        viewer_can_react: node.viewer_can_react,
         author_association: node.author_association,
         last_edited_at: node.last_edited_at,
         html_url: node.url,
@@ -767,7 +856,7 @@ mod tests {
                         "state": "CLOSED", "stateReason": "NOT_PLANNED",
                         "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-02T00:00:00Z", "closedAt": "2026-01-02T00:00:00Z",
                         "author": null, "comments": { "totalCount": 3 },
-                        "labels": { "nodes": [{ "name": "bug", "color": "d73a4a", "description": "" }, null] },
+                        "labels": { "nodes": [{ "id": "LA_1", "name": "bug", "color": "d73a4a", "description": "" }, null] },
                         "assignees": { "nodes": [] }, "milestone": { "title": "v1" }
                     },
                     { "__typename": "PullRequest" },
@@ -821,7 +910,7 @@ mod tests {
                     { "content": "HEART", "reactors": { "totalCount": 0 }, "viewerHasReacted": false }
                 ]
             }),
-            json!({ "__typename": "LabeledEvent", "id": "LE_1", "createdAt": "2026-01-01T00:00:00Z", "actor": actor("mona"), "label": { "name": "bug", "color": "d73a4a" } }),
+            json!({ "__typename": "LabeledEvent", "id": "LE_1", "createdAt": "2026-01-01T00:00:00Z", "actor": actor("mona"), "label": { "id": "LA_1", "name": "bug", "color": "d73a4a" } }),
             json!({
                 "__typename": "ClosedEvent", "id": "CE_1", "createdAt": "2026-01-02T00:00:00Z", "stateReason": "COMPLETED", "actor": null,
                 "closer": { "__typename": "PullRequest", "number": 8, "title": "Fix", "url": "https://github.com/octo/hello/pull/8", "state": "MERGED", "isDraft": false, "repository": { "nameWithOwner": "octo/hello" } }

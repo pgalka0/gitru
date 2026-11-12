@@ -17,10 +17,12 @@ export function GithubMarkdown({
   html,
   onOpenIssue,
   className,
+  emptyText = "No description provided.",
 }: {
   html: string;
   onOpenIssue?: (target: IssueLinkTarget) => boolean;
   className?: string;
+  emptyText?: string;
 }) {
   const sanitized = useMemo(() => sanitizeGithubHtml(html), [html]);
 
@@ -40,7 +42,7 @@ export function GithubMarkdown({
   if (!sanitized.trim()) {
     return (
       <p className={cn("text-sm italic text-muted-foreground", className)}>
-        No description provided.
+        {emptyText}
       </p>
     );
   }
