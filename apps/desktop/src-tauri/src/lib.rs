@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 #[cfg(feature = "e2e")]
 const E2E_RESET_ENV: &str = "GITRU_E2E_RESET";
 #[cfg(feature = "e2e")]
-const E2E_IDENTIFIER: &str = "com.ruru.gitru.e2e";
+const E2E_IDENTIFIER: &str = "com.pgalka0.gitru.e2e";
 
 #[cfg(target_os = "macos")]
 mod app_menu;
@@ -24,8 +24,6 @@ mod commands;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -77,6 +75,13 @@ pub fn run() {
             commands::branch::status_ahead_behind,
             commands::branch::get_branch_info,
             commands::diff::get_patch_by_file_path,
+            commands::github::github_auth_status,
+            commands::github::github_start_device_flow,
+            commands::github::github_complete_device_flow,
+            commands::github::github_cancel_device_flow,
+            commands::github::github_import_cli_token,
+            commands::github::github_sign_out,
+            commands::github::github_repository_summaries,
             commands::history::history,
             commands::history::history_graph,
             commands::history::commit_activity,
@@ -130,8 +135,6 @@ pub fn run() {
             commands::rebase::rebase_update_todo,
             commands::rebase::rebase_set_commit_message,
             commands::rebase::rebase_resolve_conflict,
-            commands::updater::check_for_update_by_channel,
-            commands::updater::download_and_install_update_by_channel,
             // Session Navigation Commands
             ipc::commands::session_push_to_history,
             ipc::commands::session_go_back,
@@ -170,6 +173,21 @@ fn reset_e2e_state(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// The credential lives in the OS keychain under the app identifier, so the
+/// isolated E2E identifier can never read the developer's real token.
+#[cfg(not(feature = "e2e"))]
+fn github_token_store(app: &App) -> Arc<dyn github::auth::token_store::TokenStore> {
+    Arc::new(github::auth::token_store::KeyringTokenStore::new(
+        app.config().identifier.clone(),
+        "github.com",
+    ))
+}
+
+#[cfg(feature = "e2e")]
+fn github_token_store(_app: &App) -> Arc<dyn github::auth::token_store::TokenStore> {
+    Arc::new(github::auth::token_store::MemoryTokenStore::default())
+}
+
 fn setup_managers(app: &mut App) {
     let app_handle = app.handle().clone();
 
@@ -178,6 +196,16 @@ fn setup_managers(app: &mut App) {
 
     let session_manager = SessionManager::new();
     app.manage(Arc::new(session_manager));
+
+    match github::GithubService::new(
+        github_token_store(app),
+        commands::github::configured_client_id(),
+    ) {
+        Ok(service) => {
+            app.manage(Arc::new(service));
+        }
+        Err(error) => log::error!(target: "github", "GitHub integration disabled: {error}"),
+    }
 
     tauri::async_runtime::spawn(async move {
         let _ = app_handle.store(STORE_FILE);

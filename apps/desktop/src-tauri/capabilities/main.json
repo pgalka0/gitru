@@ -26,7 +26,6 @@
     "store:allow-set",
     "store:allow-delete",
     "store:allow-save",
-    "process:allow-restart",
     "dialog:allow-open"
   ]
 }

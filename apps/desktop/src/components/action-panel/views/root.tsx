@@ -12,7 +12,6 @@ import {
   ArrowUpFromLine,
   ArrowUpIcon,
   CornerDownLeftIcon,
-  Download,
   FolderGit2,
   FolderRoot,
   GitBranchIcon,
@@ -60,7 +59,6 @@ const iconMap: Record<string, React.ReactNode> = {
   arrowUpFromLine: <ArrowUpFromLine className="size-4" />,
   refreshCcw: <RefreshCcw className="size-4" />,
   theme: <SwatchBook className="size-4" />,
-  updates: <Download className="size-4" />,
   search: <SearchIcon className="size-4" />,
   pickaxe: <Pickaxe className="size-4" />,
 };
@@ -294,12 +292,6 @@ export function useRootView(): CommandViewConfig<"root", ActionItem> {
             iconKey: "theme",
             keywords: ["theme", "color", "appearance", "dark", "light"],
           },
-          {
-            id: "switch-update-channel",
-            label: "Switch Update Channel",
-            iconKey: "updates",
-            keywords: ["update", "channel", "stable", "beta"],
-          },
         ] satisfies ActionItem[];
       },
       getItemValue: (item) => {
@@ -361,8 +353,6 @@ export function useRootView(): CommandViewConfig<"root", ActionItem> {
               navigate.push("rebase-onto");
             } else if (item.id === "switch-theme") {
               navigate.push("switch-theme");
-            } else if (item.id === "switch-update-channel") {
-              navigate.push("switch-update-channel");
             }
           }}
           emptyState={() => (

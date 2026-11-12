@@ -1,5 +1,5 @@
 import { type RepositoryInfo } from "@gitru/commands";
-import type { ExternalOpener, UpdateChannel } from "@/types/store";
+import type { ExternalOpener } from "@/types/store";
 import type { AppStoreSet } from "./store-helpers";
 import { getActiveRuntimeId, getRepositoryById } from "./store-helpers";
 
@@ -129,8 +129,4 @@ export const createRepositorySelectorSlice = (set: AppStoreSet) => ({
 
   setPreferredExternalOpener: (opener: ExternalOpener) =>
     set({ preferredExternalOpener: opener }),
-
-  updateChannel: "stable" as UpdateChannel,
-
-  setUpdateChannel: (channel: UpdateChannel) => set({ updateChannel: channel }),
 });

@@ -13,7 +13,7 @@ link_env() {
 
 echo "Linking .env file..."
 
-for path in apps/api/.env apps/desktop/.env apps/web/.env; do
+for path in apps/desktop/.env; do
   link_env "$path"
 done
 

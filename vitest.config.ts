@@ -59,13 +59,6 @@ export default defineConfig({
       }),
       reactProject({
         alias: {
-          "@": resolve(repositoryRoot, "apps/web"),
-        },
-        name: "web",
-        path: "apps/web",
-      }),
-      reactProject({
-        alias: {
           "@gitru/ui": resolve(repositoryRoot, "packages/ui/src"),
         },
         name: "ui",

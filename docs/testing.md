@@ -37,10 +37,6 @@ setup action reads and installs the pinned Rust version from
 `--frozen-lockfile`, and caches the root Bun and Cargo workspaces. Superseded
 runs for the same pull request or branch are canceled.
 
-The release workflow checks out the published tag and runs `make verify`
-before any Tauri artifact is built or uploaded. A failing revision therefore
-cannot publish application artifacts or the updater manifest.
-
 ## Packaged desktop end-to-end tests
 
 Run the same production-equivalent desktop smoke suite used by CI from the
@@ -54,7 +50,7 @@ This delegates to `bun --cwd=apps/desktop run e2e`, builds the E2E-enabled
 Tauri application, and drives critical workflows across the UI, Tauri, Rust,
 and Git boundaries. Every scenario creates its repository fixture beneath the
 operating system's temporary directory. Application state uses the separate
-`com.ruru.gitru.e2e` Tauri identifier; the harness resets only that namespace's
+`com.pgalka0.gitru.e2e` Tauri identifier; the harness resets only that namespace's
 `repositories.json` and `app-state.json` before launch. Tests never reuse or
 mutate repositories registered in the developer's Gitru data. Destructive Git
 operations are scoped to the disposable fixtures, which are cleaned up after

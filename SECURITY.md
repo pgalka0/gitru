@@ -1,7 +1,8 @@
 # Reporting Security Issues
 
-If you believe you have found a security vulnerability, we encourage you to let us know right away.
+If you believe you have found a security vulnerability, please report it
+privately through GitHub's
+[private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
+on this repository instead of opening a public issue.
 
-Please report any vulnerabilities to [yo@ruru.build](mailto:yo@ruru.build).
-
-Include details to help reproduce the issue. We will investigate the report as soon as possible.
+Include details to help reproduce the issue.

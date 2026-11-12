@@ -43,7 +43,6 @@ export const useAppStore = create<AppState>()(
           repoSelectIsOpenBySession: state.repoSelectIsOpenBySession,
           optimisticRepositoryCard: state.optimisticRepositoryCard,
           preferredExternalOpener: state.preferredExternalOpener,
-          updateChannel: state.updateChannel,
           gitViewByRepo: state.gitViewByRepo,
         }),
         onRehydrateStorage: () => (_state, error) => {

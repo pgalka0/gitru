@@ -1,7 +1,0 @@
-{
-  "title": "Branching",
-  "icon": "GitBranch",
-  "collapsible": false,
-  "defaultOpen": true,
-  "pages": ["branch-management", "branch-comparison", "upstream-tracking"]
-}

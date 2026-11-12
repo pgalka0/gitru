@@ -1,7 +1,6 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StateFlags, saveWindowState } from "@tauri-apps/plugin-window-state";
-import { PostHogProvider, usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
 const WINDOW_STATE_FLAGS =
@@ -20,36 +19,6 @@ const isEmbeddedRuntime = () => {
     searchParams.get("embedded") === "true"
   );
 };
-
-function AnalyticsBootstrap() {
-  const posthog = usePostHog();
-
-  useEffect(() => {
-    posthog.opt_in_capturing();
-    posthog.capture("desktop_app_open");
-
-    const sendPresencePing = () => {
-      if (document.visibilityState === "visible") {
-        posthog.capture("desktop_app_presence_ping");
-      }
-    };
-
-    sendPresencePing();
-
-    const intervalId = window.setInterval(sendPresencePing, 120_000);
-
-    document.addEventListener("visibilitychange", sendPresencePing);
-    window.addEventListener("focus", sendPresencePing);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", sendPresencePing);
-      window.removeEventListener("focus", sendPresencePing);
-    };
-  }, [posthog]);
-
-  return null;
-}
 
 function WindowStatePersistence() {
   useEffect(() => {
@@ -116,47 +85,10 @@ export const Route = createRootRoute({
     }
 
     return (
-      <PostHogProvider
-        apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN || "disabled"}
-        options={{
-          api_host:
-            import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
-            "https://us.i.posthog.com",
-          debug: import.meta.env.DEV,
-          capture_exceptions: false,
-          capture_pageview: false,
-          capture_pageleave: false,
-          disable_session_recording: true,
-          disable_surveys: true,
-          advanced_disable_flags: true,
-          autocapture: false,
-          opt_out_capturing_by_default: false,
-          persistence: "memory",
-          person_profiles: "never",
-          sanitize_properties: (properties) => {
-            const sanitized = { ...properties };
-            for (const key of [
-              "$current_url",
-              "$host",
-              "$initial_current_url",
-              "$initial_referrer",
-              "$initial_referring_domain",
-              "$pageview_id",
-              "$pathname",
-              "$referrer",
-              "$referring_domain",
-              "$title",
-            ]) {
-              delete sanitized[key];
-            }
-            return sanitized;
-          },
-        }}
-      >
+      <>
         <WindowStatePersistence />
-        <AnalyticsBootstrap />
         {content}
-      </PostHogProvider>
+      </>
     );
   },
 });

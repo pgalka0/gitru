@@ -37,7 +37,6 @@ const appEnvironment = {
   GITRU_E2E_REPO: fixtureRepository,
   GITRU_E2E_RESET: "1",
   GITRU_E2E_TEMP_ROOT: fixtureRoot,
-  UPDATER_BASE_URL: "http://127.0.0.1:9",
 };
 
 const safeArtifactName = (value: string) =>

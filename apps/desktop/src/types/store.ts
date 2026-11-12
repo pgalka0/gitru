@@ -57,7 +57,6 @@ export type WorkspaceSessionState = {
   snapshotVersion: number;
 };
 
-export type UpdateChannel = "stable" | "beta";
 export type GitSidebarView = "changes" | "stash" | "history";
 export type StashViewMode = "branch" | "all";
 export type ChangesTab = "changes" | "history";
@@ -164,9 +163,6 @@ export type AppState = {
 
   preferredExternalOpener: ExternalOpener;
   setPreferredExternalOpener: (opener: ExternalOpener) => void;
-
-  updateChannel: UpdateChannel;
-  setUpdateChannel: (channel: UpdateChannel) => void;
 
   gitViewByRepo: Record<RepoKey, GitViewState>;
   setGitViewStateForRepo: (

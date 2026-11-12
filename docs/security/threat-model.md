@@ -13,9 +13,9 @@ commit messages, diffs, remotes, and hosted-service responses as untrusted.
   repository context. File operations must preserve the existing service-layer
   path checks and must not accept arbitrary web content as a path.
 - **Native commands:** only local application webviews receive IPC access. The
-  main webview owns child-webview, update, and restart capabilities. Embedded tab
-  webviews receive read-only app-store access and the directory picker, but no
-  process, updater, opener, notification, or webview-management plugin access.
+  main webview owns child-webview capabilities. Embedded tab webviews receive
+  read-only app-store access and the directory picker, but no opener,
+  notification, or webview-management plugin access.
 - **Remote content:** external navigation crosses a backend HTTPS-only validator.
   Remote images are limited to the explicitly listed avatar hosts and the CSP
   blocks all other image and network origins.
@@ -23,7 +23,7 @@ commit messages, diffs, remotes, and hosted-service responses as untrusted.
 ## Expected attackers
 
 The primary inputs are a malicious repository, crafted Git metadata, a hostile
-remote URL, or compromised remote image/analytics infrastructure. The security
+remote URL, or compromised remote image infrastructure. The security
 boundary must also limit the impact of a frontend injection bug. Gitru does not
 claim to defend a user whose operating-system account or Git executable is
 already compromised.
@@ -41,12 +41,8 @@ already compromised.
 4. Security tests must cover rejected URL schemes/credentials and remote-content
    host allowlists. A packaged build must be exercised when CSP sources change.
 
-## Telemetry
+## Telemetry and updates
 
-Anonymous usage analytics is off until the user explicitly enables it in the
-sidebar. It sends only fixed app-open and presence event names plus basic runtime
-metadata such as operating system and screen size. Autocapture, session
-recording, surveys, page URLs, titles, referrers, and person profiles are
-disabled. The anonymous identifier is memory-only and changes between launches.
-Repository paths, code, diffs, remotes, branches, and commit data are never
-included. The same sidebar control disables collection immediately.
+This fork ships no analytics and no self-updater. The app makes no network
+requests besides Git network operations the user starts, avatar images, and
+(once signed in) GitHub API calls made from the Rust backend.
