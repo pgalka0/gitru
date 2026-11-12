@@ -41,8 +41,24 @@ already compromised.
 4. Security tests must cover rejected URL schemes/credentials and remote-content
    host allowlists. A packaged build must be exercised when CSP sources change.
 
+## GitHub content
+
+Issue and comment bodies are GitHub-rendered HTML written by other people.
+`apps/desktop/src/lib/github-html.ts` sanitizes them with DOMPurify before they
+reach the DOM, on top of the CSP:
+
+- no scripts, styles, forms, frames, SVG/MathML, inline `style`, `id`/`name`
+  or `data-*` attributes;
+- links must be https and never navigate the webview: they open in the system
+  browser, or in-app for issues of a repository the user has added;
+- images only from `github.com` and `*.githubusercontent.com` (GitHub proxies
+  third-party images through camo), matching CSP `img-src`;
+- only GitHub's own markdown classes are kept, so content cannot reuse the
+  app's utility classes to overlay or restyle the UI.
+
 ## Telemetry and updates
 
 This fork ships no analytics and no self-updater. The app makes no network
-requests besides Git network operations the user starts, avatar images, and
-(once signed in) GitHub API calls made from the Rust backend.
+requests besides Git network operations the user starts, avatar images, images
+embedded in GitHub issues and comments, and (once signed in) GitHub API calls
+made from the Rust backend.

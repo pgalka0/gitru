@@ -9,6 +9,7 @@ pub mod client;
 pub mod endpoints;
 pub mod error;
 mod graphql;
+mod issues;
 pub mod models;
 pub mod service;
 

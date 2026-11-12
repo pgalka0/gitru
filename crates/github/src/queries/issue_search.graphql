@@ -1,0 +1,17 @@
+query IssueSearch($search: String!, $first: Int!, $after: String) {
+  search(query: $search, type: ISSUE, first: $first, after: $after) {
+    issueCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      __typename
+      ... on Issue {
+        number title url state stateReason createdAt updatedAt closedAt
+        author { login avatarUrl url }
+        comments { totalCount }
+        labels(first: 10) { nodes { name color } }
+        assignees(first: 5) { nodes { login avatarUrl url } }
+        milestone { title }
+      }
+    }
+  }
+}

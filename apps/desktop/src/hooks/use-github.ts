@@ -8,6 +8,7 @@ import {
   githubRepositorySummaries,
   githubSignOut,
   githubStartDeviceFlow,
+  type IssueListRequest,
   type RepositoryRef,
 } from "@gitru/commands";
 import {
@@ -26,6 +27,23 @@ export const githubKeys = {
   auth: () => [...githubKeys.all, "auth"] as const,
   repositorySummaries: (repositories: RepositoryRef[]) =>
     [...githubKeys.all, "repository-summaries", repositories] as const,
+  issues: (filters: Omit<IssueListRequest, "after">) =>
+    [...githubKeys.all, "issues", filters] as const,
+  issue: (repository: RepositoryRef, number: number) =>
+    [
+      ...githubKeys.all,
+      "issue",
+      repository.owner.toLowerCase(),
+      repository.name.toLowerCase(),
+      number,
+    ] as const,
+  labels: (repository: RepositoryRef) =>
+    [
+      ...githubKeys.all,
+      "labels",
+      repository.owner.toLowerCase(),
+      repository.name.toLowerCase(),
+    ] as const,
 };
 
 const errorMessage = (error: unknown) =>

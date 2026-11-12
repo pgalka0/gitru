@@ -16,9 +16,11 @@ use crate::{
     endpoints::Endpoints,
     error::GithubError,
     graphql::{self, RepositorySummaryNode, ViewerData},
+    issues::{self, IssueDetailData, IssueSearchData, RepositoryLabelsData},
     models::{
-        AuthStatus, DeviceVerification, RepositoryRef, RepositorySummary, RepositorySummaryResult,
-        TokenSource, Viewer,
+        AuthStatus, DeviceVerification, IssueDetail, IssueDetailRequest, IssueListRequest,
+        IssuePage, Label, RepositoryRef, RepositorySummary, RepositorySummaryResult, TokenSource,
+        Viewer,
     },
 };
 
@@ -246,6 +248,75 @@ impl GithubService {
             .collect();
 
         Ok(results)
+    }
+
+    /// One page of a repository's issues, filtered and sorted like the
+    /// github.com issue list (backed by GitHub search).
+    pub async fn list_issues(&self, request: IssueListRequest) -> Result<IssuePage, GithubError> {
+        let variables = issues::issue_search_variables(&request)?;
+        let client = self.client().await?;
+        let (data, _) = self
+            .guard(
+                client
+                    .query::<IssueSearchData>(issues::ISSUE_SEARCH_QUERY, variables)
+                    .await,
+            )
+            .await?;
+        Ok(data.into())
+    }
+
+    /// An issue with one page of its timeline (100 items).
+    pub async fn issue(&self, request: IssueDetailRequest) -> Result<IssueDetail, GithubError> {
+        let variables = issues::issue_detail_variables(&request)?;
+        let client = self.client().await?;
+        let (data, _) = self
+            .guard(
+                client
+                    .query::<IssueDetailData>(issues::ISSUE_DETAIL_QUERY, variables)
+                    .await,
+            )
+            .await?;
+        data.into_detail().ok_or_else(|| {
+            GithubError::InvalidInput(format!(
+                "Issue #{} was not found in {}/{}",
+                request.number, request.repository.owner, request.repository.name
+            ))
+        })
+    }
+
+    /// All labels of a repository, sorted by name.
+    pub async fn repository_labels(
+        &self,
+        repository: RepositoryRef,
+    ) -> Result<Vec<Label>, GithubError> {
+        repository.validate()?;
+        let client = self.client().await?;
+        let mut labels = Vec::new();
+        let mut after: Option<String> = None;
+
+        for _ in 0..issues::MAX_LABEL_PAGES {
+            let variables = issues::repository_labels_variables(&repository, after.as_deref());
+            let (data, _) = self
+                .guard(
+                    client
+                        .query::<RepositoryLabelsData>(issues::REPOSITORY_LABELS_QUERY, variables)
+                        .await,
+                )
+                .await?;
+            let Some(page) = data.into_page() else {
+                return Err(GithubError::InvalidInput(format!(
+                    "Repository {}/{} was not found",
+                    repository.owner, repository.name
+                )));
+            };
+            labels.extend(page.labels);
+            match page.next_cursor {
+                Some(cursor) => after = Some(cursor),
+                None => break,
+            }
+        }
+
+        Ok(labels)
     }
 
     async fn client(&self) -> Result<Arc<GithubClient>, GithubError> {

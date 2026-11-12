@@ -11,6 +11,7 @@ export const ResizableLayout = ({
   children,
   minWidth = 200,
   maxWidth = 600,
+  defaultWidth = 300,
   leftPanelClassName,
   rightPanelClassName,
 }: {
@@ -18,10 +19,12 @@ export const ResizableLayout = ({
   children: [React.ReactNode, React.ReactNode];
   minWidth?: number;
   maxWidth?: number;
+  /** Width before the user resizes this layout for the first time. */
+  defaultWidth?: number;
   leftPanelClassName?: string;
   rightPanelClassName?: string;
 }) => {
-  const width = useLayoutStore((s) => s.layouts[id] ?? 300);
+  const width = useLayoutStore((s) => s.layouts[id] ?? defaultWidth);
   const setWidth = useLayoutStore((s) => s.setWidth);
 
   const containerRef = useRef<HTMLDivElement>(null);
